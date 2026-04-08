@@ -1,0 +1,33 @@
+{
+  "disease": "Breast Cancer",
+  "subtype": "TNBC",
+  "description": "Triple-negative breast cancer",
+  "cohortSource": "cBioPortal",
+  "studyId": "brca_tcga",
+  "endpoints": ["therapy_response", "overall_survival"],
+  "biomarkers": {
+    "BRCA1": {
+      "role": "DNA repair deficiency",
+      "mutationEffect": "PARP inhibitor sensitivity"
+    },
+    "BRCA2": {
+      "role": "DNA repair deficiency",
+      "mutationEffect": "PARP inhibitor sensitivity"
+    },
+    "PD-L1": {
+      "role": "Immune checkpoint marker",
+      "expressionEffect": "Immunotherapy benefit when positive"
+    }
+  },
+  "standardTherapies": [
+    "Chemotherapy (Anthracycline/Taxane)",
+    "PARP inhibitor (Olaparib/Talazoparib)",
+    "Immunotherapy (Pembrolizumab)"
+  ],
+  "heuristics": {
+    "BRCA1_mutated": { "parp_inhibitor": "favorable" },
+    "BRCA2_mutated": { "parp_inhibitor": "favorable" },
+    "PDL1_positive": { "immunotherapy": "favorable" },
+    "PDL1_negative": { "immunotherapy": "reduced" }
+  }
+}

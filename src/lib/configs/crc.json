@@ -1,0 +1,34 @@
+{
+  "disease": "Colorectal Cancer",
+  "subtype": "CRC",
+  "description": "Colorectal cancer",
+  "cohortSource": "cBioPortal",
+  "studyId": "coadread_tcga",
+  "endpoints": ["therapy_response", "overall_survival"],
+  "biomarkers": {
+    "KRAS": {
+      "role": "EGFR pathway activation",
+      "mutationEffect": "Resistance to anti-EGFR therapy"
+    },
+    "NRAS": {
+      "role": "EGFR pathway activation",
+      "mutationEffect": "Resistance to anti-EGFR therapy"
+    },
+    "MSI": {
+      "role": "Microsatellite instability",
+      "highEffect": "Immunotherapy sensitivity"
+    }
+  },
+  "standardTherapies": [
+    "FOLFOX/FOLFIRI chemotherapy",
+    "Anti-EGFR (Cetuximab/Panitumumab)",
+    "Immunotherapy (Pembrolizumab for MSI-H)"
+  ],
+  "heuristics": {
+    "KRAS_mutated": { "anti_egfr": "resistant" },
+    "NRAS_mutated": { "anti_egfr": "resistant" },
+    "KRAS_NRAS_wildtype": { "anti_egfr": "favorable" },
+    "MSI_high": { "immunotherapy": "favorable" },
+    "MSI_stable": { "immunotherapy": "reduced" }
+  }
+}

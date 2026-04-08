@@ -1,0 +1,34 @@
+{
+  "disease": "Breast Cancer",
+  "subtype": "HR+/HER2-",
+  "description": "Hormone receptor positive, HER2 negative breast cancer",
+  "cohortSource": "cBioPortal",
+  "studyId": "brca_tcga",
+  "endpoints": ["therapy_response", "overall_survival"],
+  "biomarkers": {
+    "ESR1": {
+      "role": "Endocrine resistance marker",
+      "mutationEffect": "Reduced endocrine monotherapy benefit"
+    },
+    "PIK3CA": {
+      "role": "PI3K pathway activation",
+      "mutationEffect": "Potential benefit from PI3K inhibitors"
+    },
+    "RB1": {
+      "role": "CDK4/6 response predictor",
+      "mutationEffect": "Loss reduces CDK4/6 inhibitor benefit",
+      "intactEffect": "High proliferation + intact RB1 increases CDK4/6 benefit"
+    }
+  },
+  "standardTherapies": [
+    "Endocrine monotherapy (Tamoxifen/AI)",
+    "Endocrine + CDK4/6 inhibitor (Palbociclib/Ribociclib)",
+    "PI3K inhibitor (Alpelisib)"
+  ],
+  "heuristics": {
+    "ESR1_mutated": { "endocrine_monotherapy": "reduced", "cdk46_inhibitor": "consider" },
+    "PIK3CA_mutated": { "pi3k_inhibitor": "favorable" },
+    "RB1_intact_high_prolif": { "cdk46_inhibitor": "favorable" },
+    "RB1_loss": { "cdk46_inhibitor": "reduced" }
+  }
+}
