@@ -18,24 +18,29 @@ Can a general-purpose agentic AI workflow integrate open-source clinical, genomi
 ## Agentic Reasoning Loop
 
 1. **Plan** — Interpret query and generate a step-by-step reasoning plan
-2. **Retrieve** — Pull clinical, genomic, pathway, and drug-target evidence
-3. **Synthesize** — Assemble an auditable evidence table
-4. **Predict** — Apply transparent heuristics for therapy response
-5. **Generate Leads** — Propose mechanism-level therapeutic candidates
-6. **Benchmark** — Compare leads against standard therapies
+2. **Retrieve** — Pull real data from cBioPortal (mutations, cohorts) and OpenTargets (target-disease evidence, druggability)
+3. **Synthesize** — Assemble an auditable evidence table integrating mutation frequencies, association scores, and druggability
+4. **Predict** — Apply transparent heuristics with confidence scoring based on real data
+5. **Generate Leads** — Propose mechanism-level therapeutic candidates from evidence
+6. **Benchmark** — Score leads using composite metrics (association 35%, mutation frequency 25%, drug evidence 25%, mechanistic plausibility 15%)
 7. **Report** — Produce reproducible output with full provenance
 
 Every step is logged, traceable, and stored in the database.
 
 ## Supported Disease Contexts
 
-| Context | Config Key | Key Biomarkers |
-|---|---|---|
-| HR+/HER2- Breast Cancer | hr_pos_her2_neg | ESR1, PIK3CA, RB1 |
-| Triple-Negative Breast Cancer | tnbc | BRCA1, BRCA2, PD-L1 |
-| Colorectal Cancer | crc | KRAS, NRAS, MSI |
+| Context | Config Key | Key Biomarkers | cBioPortal Study |
+|---|---|---|---|
+| HR+/HER2- Breast Cancer | hr_pos_her2_neg | ESR1, PIK3CA, RB1 | brca_tcga |
+| Triple-Negative Breast Cancer | tnbc | BRCA1, BRCA2, PD-L1 | brca_tcga |
+| Colorectal Cancer | crc | KRAS, NRAS, MSI | coadread_tcga |
 
 Disease contexts are defined by JSON configuration files — no code changes required to add new contexts.
+
+## Live Data Sources
+
+- **cBioPortal API** (https://www.cbioportal.org/api) — Real cohort data, mutation profiles, mutation frequencies. No API key required.
+- **OpenTargets GraphQL API** (https://api.platform.opentargets.org/) — Target-disease association scores, datatype evidence breakdown, druggability assessment. No API key required.
 
 ## Tech Stack
 
@@ -43,15 +48,18 @@ Disease contexts are defined by JSON configuration files — no code changes req
 - **Database:** Supabase (PostgreSQL)
 - **Deployment:** Vercel
 - **Agent Framework:** Custom modular agent inspired by BioAgents (2025)
-- **External APIs:** cBioPortal, OpenTargets (integration in Phase 2)
+- **External APIs:** cBioPortal REST API, OpenTargets GraphQL API
 
 ## Project Structure
 app/ — Next.js app router pages and API routes
+api/agent/ — Agent execution endpoint
 src/
 components/ — UI components
 lib/
 agent/ — 7-step agentic reasoning loop
+api/ — cBioPortal and OpenTargets API clients
 configs/ — Disease context JSON configurations
+supabase.js — Database client
 docs/
 progress-reports/ — Phase progress reports
 
@@ -60,21 +68,24 @@ progress-reports/ — Phase progress reports
 ### Findable
 - Organized repository with clear naming conventions
 - Indexed reports and structured outputs
+- Each agent run has a unique run ID
 
 ### Accessible
 - Public GitHub repository
 - Clear README and documentation
-- API documentation for all endpoints
+- All APIs are open and require no authentication
 
 ### Interoperable
 - Standard data formats (JSON)
 - Modular architecture with config-driven disease contexts
-- REST API interface
+- REST and GraphQL API interfaces
+- Supabase PostgreSQL for structured storage
 
 ### Reusable
 - Config-driven system — swap disease context without code changes
 - Documented workflows with full provenance
 - All agent artifacts stored with traceability
+- Composite scoring with transparent weights
 
 ## Setup
 
@@ -91,6 +102,6 @@ See `.env.example` for required variables.
 ## Phase Progress
 
 - [x] Phase 1 — Foundation (project setup, schema, agent skeleton, deployment)
-- [ ] Phase 2 — Data & Evidence (API integration, evidence tables, logging)
-- [ ] Phase 3 — Intelligence (prediction logic, lead generation, benchmarking)
-- [ ] Phase 4 — Polish & Generalization (multi-context, UI, final report)
+- [x] Phase 2 — Data & Evidence (live API integration, evidence tables, enhanced UI)
+- [ ] Phase 3 — Intelligence (enhanced prediction logic, lead generation, benchmarking)
+- [ ] Phase 4 — Polish & Generalization (multi-context demo, UI, final report)
