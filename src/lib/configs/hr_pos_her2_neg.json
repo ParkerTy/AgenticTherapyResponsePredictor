@@ -1,34 +1,77 @@
 {
   "disease": "Breast Cancer",
   "subtype": "HR+/HER2-",
-  "description": "Hormone receptor positive, HER2 negative breast cancer",
+  "description": "Hormone receptor-positive, HER2-negative breast cancer. Endocrine therapy is foundational; CDK4/6 inhibitors and PI3K inhibitors are key adjunctive classes.",
   "cohortSource": "cBioPortal",
   "studyId": "brca_tcga",
-  "endpoints": ["therapy_response", "overall_survival"],
+  "endpoints": [
+    "/studies/brca_tcga",
+    "/studies/brca_tcga/samples",
+    "/molecular-profiles/brca_tcga_mutations/mutations/fetch"
+  ],
   "biomarkers": {
-    "ESR1": {
-      "role": "Endocrine resistance marker",
-      "mutationEffect": "Reduced endocrine monotherapy benefit"
-    },
     "PIK3CA": {
-      "role": "PI3K pathway activation",
-      "mutationEffect": "Potential benefit from PI3K inhibitors"
+      "role": "oncogene",
+      "mutationEffect": "activating",
+      "measurementType": "mutation"
+    },
+    "ESR1": {
+      "role": "estrogen receptor",
+      "mutationEffect": "endocrine_resistance",
+      "measurementType": "mutation"
     },
     "RB1": {
-      "role": "CDK4/6 response predictor",
-      "mutationEffect": "Loss reduces CDK4/6 inhibitor benefit",
-      "intactEffect": "High proliferation + intact RB1 increases CDK4/6 benefit"
+      "role": "tumor suppressor",
+      "intactEffect": "cdk46_sensitive",
+      "measurementType": "mutation"
     }
   },
   "standardTherapies": [
-    "Endocrine monotherapy (Tamoxifen/AI)",
-    "Endocrine + CDK4/6 inhibitor (Palbociclib/Ribociclib)",
-    "PI3K inhibitor (Alpelisib)"
+    "aromatase_inhibitor",
+    "fulvestrant",
+    "cdk46_inhibitor",
+    "pi3k_inhibitor",
+    "tamoxifen"
   ],
   "heuristics": {
-    "ESR1_mutated": { "endocrine_monotherapy": "reduced", "cdk46_inhibitor": "consider" },
-    "PIK3CA_mutated": { "pi3k_inhibitor": "favorable" },
-    "RB1_intact_high_prolif": { "cdk46_inhibitor": "favorable" },
-    "RB1_loss": { "cdk46_inhibitor": "reduced" }
-  }
+    "PIK3CA": {
+      "pi3k_inhibitor": "favorable",
+      "aromatase_inhibitor": "consider"
+    },
+    "ESR1": {
+      "aromatase_inhibitor": "reduced",
+      "fulvestrant": "consider"
+    },
+    "RB1": {
+      "cdk46_inhibitor": "favorable"
+    }
+  },
+  "interactionRules": [
+    {
+      "id": "pik3ca_esr1_co_mutation",
+      "name": "PIK3CA + ESR1 co-mutation",
+      "description": "Co-mutation of PIK3CA and ESR1 indicates a likely endocrine-resistant, PI3K-driven phenotype. Endocrine monotherapy confidence is reduced; PI3K inhibitor combinations are strengthened.",
+      "trigger": {
+        "type": "co_mutation",
+        "genes": ["PIK3CA", "ESR1"]
+      },
+      "effects": [
+        { "biomarker": "ESR1", "therapy": "aromatase_inhibitor", "confidenceDelta": -0.15, "reason": "ESR1-driven endocrine resistance amplified by PIK3CA activation." },
+        { "biomarker": "PIK3CA", "therapy": "pi3k_inhibitor", "confidenceDelta": 0.10, "reason": "Combination PI3K + endocrine therapy is a recognized strategy in this dual-driver context." }
+      ]
+    },
+    {
+      "id": "rb1_loss_blocks_cdk46",
+      "name": "RB1 loss blocks CDK4/6 inhibitor benefit",
+      "description": "CDK4/6 inhibitors require intact RB1 to exert their cell-cycle arrest effect. RB1 loss-of-function predicts CDK4/6 inhibitor resistance.",
+      "trigger": {
+        "type": "single_mutation",
+        "gene": "RB1",
+        "frequencyThreshold": 2.0
+      },
+      "effects": [
+        { "biomarker": "RB1", "therapy": "cdk46_inhibitor", "confidenceDelta": -0.20, "reason": "RB1 loss eliminates the molecular substrate for CDK4/6 inhibitor activity." }
+      ]
+    }
+  ]
 }

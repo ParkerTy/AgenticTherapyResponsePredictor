@@ -1,19 +1,18 @@
 /**
- * Agent Orchestrator — Runs the 7-step reasoning loop end-to-end.
+ * Agent Orchestrator — Runs the agent reasoning loop end-to-end.
  *
- * Phase 3 update: now begins with a deterministic query-parse step. The parsed
- * query is propagated to plan and predict so the user's natural-language input
- * actually steers agent behavior. The parse step is logged as a tool call
- * named 'parseQuery' for full audit trail.
+ * Phase 3 step order:
+ *   parseQuery -> plan -> retrieve -> synthesize -> interactions
+ *               -> predict -> generateLeads -> benchmark -> report
  *
- * Step order:
- *   parseQuery -> plan -> retrieve -> synthesize -> predict -> generateLeads
- *               -> benchmark -> report
+ * The interactions step (Phase 3 Step 2) evaluates biomarker co-occurrence
+ * and modifier rules and feeds modifiers into predict.
  */
 
 import { plan } from './plan.js';
 import { retrieve } from './retrieve.js';
 import { synthesize } from './synthesize.js';
+import { runInteractions } from './interactions.js';
 import { predict } from './predict.js';
 import { generateLeads } from './generateLeads.js';
 import { benchmark } from './benchmark.js';
@@ -34,40 +33,31 @@ export async function runAgent(diseaseConfig, query) {
   };
 
   try {
-    // Step 0 — Parse the query (deterministic). Logged as tool call.
     const parsedQuery = parseQuery(query);
     artifacts.parsedQuery = parsedQuery;
-    artifacts.steps.push({
-      step: 'parseQuery',
-      result: parsedQuery,
-      timestamp: new Date().toISOString(),
-    });
+    artifacts.steps.push({ step: 'parseQuery', result: parsedQuery, timestamp: new Date().toISOString() });
 
-    // Step 1 — Plan (now query-aware)
     const planResult = await plan(diseaseConfig, query, parsedQuery);
     artifacts.steps.push({ step: 'plan', result: planResult, timestamp: new Date().toISOString() });
 
-    // Step 2 — Retrieve
     const retrieveResult = await retrieve(diseaseConfig);
     artifacts.steps.push({ step: 'retrieve', result: retrieveResult, timestamp: new Date().toISOString() });
 
-    // Step 3 — Synthesize
     const synthesizeResult = await synthesize(diseaseConfig, retrieveResult);
     artifacts.steps.push({ step: 'synthesize', result: synthesizeResult, timestamp: new Date().toISOString() });
 
-    // Step 4 — Predict (now query-aware)
-    const predictResult = await predict(diseaseConfig, synthesizeResult, parsedQuery);
+    const interactionsResult = await runInteractions(diseaseConfig, synthesizeResult);
+    artifacts.steps.push({ step: 'interactions', result: interactionsResult, timestamp: new Date().toISOString() });
+
+    const predictResult = await predict(diseaseConfig, synthesizeResult, parsedQuery, interactionsResult);
     artifacts.steps.push({ step: 'predict', result: predictResult, timestamp: new Date().toISOString() });
 
-    // Step 5 — Generate Leads
     const leadsResult = await generateLeads(diseaseConfig, predictResult);
     artifacts.steps.push({ step: 'generateLeads', result: leadsResult, timestamp: new Date().toISOString() });
 
-    // Step 6 — Benchmark
     const benchmarkResult = await benchmark(leadsResult);
     artifacts.steps.push({ step: 'benchmark', result: benchmarkResult, timestamp: new Date().toISOString() });
 
-    // Step 7 — Report
     const reportResult = await report(artifacts);
     artifacts.steps.push({ step: 'report', result: reportResult, timestamp: new Date().toISOString() });
 

@@ -38,11 +38,11 @@ export default function Home() {
     }
   };
 
-  // Pull individual step results out of the artifacts for rendering
   const parsedQueryStep = result?.steps?.find((s) => s.step === 'parseQuery');
   const planStep = result?.steps?.find((s) => s.step === 'plan');
   const retrieveStep = result?.steps?.find((s) => s.step === 'retrieve');
   const synthesizeStep = result?.steps?.find((s) => s.step === 'synthesize');
+  const interactionsStep = result?.steps?.find((s) => s.step === 'interactions');
   const predictStep = result?.steps?.find((s) => s.step === 'predict');
   const benchmarkStep = result?.steps?.find((s) => s.step === 'benchmark');
   const reportStep = result?.steps?.find((s) => s.step === 'report');
@@ -120,7 +120,6 @@ export default function Home() {
 
       {result && (
         <>
-          {/* Interpreted Query — NEW Phase 3 Step 1 */}
           {parsedQueryStep && (
             <section style={styles.panel}>
               <h2 style={styles.h2}>Interpreted Query</h2>
@@ -144,7 +143,6 @@ export default function Home() {
             </section>
           )}
 
-          {/* Report Summary */}
           {reportStep && (
             <section style={styles.panel}>
               <h2 style={styles.h2}>{reportStep.result.title}</h2>
@@ -153,7 +151,6 @@ export default function Home() {
             </section>
           )}
 
-          {/* Cohort */}
           {retrieveStep?.result?.cohort && (
             <section style={styles.panel}>
               <h2 style={styles.h2}>Cohort Data</h2>
@@ -164,7 +161,6 @@ export default function Home() {
             </section>
           )}
 
-          {/* Evidence Table */}
           {synthesizeStep?.result?.evidenceTable && (
             <section style={styles.panel}>
               <h2 style={styles.h2}>Evidence Table</h2>
@@ -203,7 +199,55 @@ export default function Home() {
             </section>
           )}
 
-          {/* Predictions */}
+          {/* Biomarker Interactions — NEW Phase 3 Step 2 */}
+          {interactionsStep && (
+            <section style={styles.panel}>
+              <h2 style={styles.h2}>Biomarker Interactions</h2>
+              <p style={styles.muted}>
+                {interactionsStep.result.rulesEvaluated} rule(s) evaluated ·
+                {' '}<span style={{ color: '#66cc66' }}>{interactionsStep.result.firedRules.length} fired</span> ·
+                {' '}<span style={{ color: '#888' }}>{interactionsStep.result.skippedRules.length} skipped</span>
+              </p>
+              {interactionsStep.result.firedRules.length === 0 ? (
+                <p style={styles.muted}>No interaction rules were triggered for this cohort. Predictions reflect single-biomarker reasoning only.</p>
+              ) : (
+                interactionsStep.result.firedRules.map((rule, i) => (
+                  <div key={i} style={styles.predictionCard}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <strong>{rule.name}</strong>
+                      <span style={{ ...styles.badge, background: '#2d8a2d' }}>fired</span>
+                    </div>
+                    <p style={{ margin: '8px 0 4px 0', fontSize: 13, color: '#bbb' }}>{rule.description}</p>
+                    <ul style={{ margin: '6px 0 0 18px', padding: 0, fontSize: 13 }}>
+                      {rule.effects.map((eff, j) => (
+                        <li key={j}>
+                          <span style={{ color: '#9cf' }}>{eff.biomarker} → {eff.therapy}</span>
+                          {': '}
+                          <span style={{ color: eff.confidenceDelta >= 0 ? '#66cc66' : '#ff9999' }}>
+                            {eff.confidenceDelta >= 0 ? '+' : ''}{eff.confidenceDelta.toFixed(2)}
+                          </span>
+                          {' — '}{eff.reason}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))
+              )}
+              {interactionsStep.result.skippedRules.length > 0 && (
+                <details style={{ marginTop: 8 }}>
+                  <summary style={{ cursor: 'pointer', color: '#888', fontSize: 13 }}>
+                    View skipped rules ({interactionsStep.result.skippedRules.length})
+                  </summary>
+                  <ul style={{ margin: '8px 0 0 18px', padding: 0, fontSize: 12, color: '#888' }}>
+                    {interactionsStep.result.skippedRules.map((r, i) => (
+                      <li key={i}><strong>{r.name || r.id}</strong>: {r.reason}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </section>
+          )}
+
           {predictStep?.result?.predictions && (
             <section style={styles.panel}>
               <h2 style={styles.h2}>Therapy Response Predictions</h2>
@@ -213,6 +257,9 @@ export default function Home() {
                 {predictStep.result.queryBoostsApplied > 0 && (
                   <> · <span style={{ color: '#4da6ff' }}>{predictStep.result.queryBoostsApplied} query-boosted</span></>
                 )}
+                {predictStep.result.interactionModifiersApplied > 0 && (
+                  <> · <span style={{ color: '#cc99ff' }}>{predictStep.result.interactionModifiersApplied} interaction-modified</span></>
+                )}
               </p>
               {predictStep.result.predictions.map((p, i) => (
                 <div key={i} style={styles.predictionCard}>
@@ -221,7 +268,12 @@ export default function Home() {
                     <div>
                       {p.queryBoosted && (
                         <span style={{ ...styles.badge, background: '#0070f3', marginRight: 6 }}>
-                          query-boosted +{p.queryBoost.toFixed(2)}
+                          query +{p.queryBoost.toFixed(2)}
+                        </span>
+                      )}
+                      {p.interactionModifiers && p.interactionModifiers.length > 0 && (
+                        <span style={{ ...styles.badge, background: '#7a4eb8', marginRight: 6 }}>
+                          interaction {p.interactionDelta >= 0 ? '+' : ''}{p.interactionDelta.toFixed(2)}
                         </span>
                       )}
                       <span style={{ ...styles.badge, background: confidenceBg(p.confidence) }}>
@@ -235,7 +287,6 @@ export default function Home() {
             </section>
           )}
 
-          {/* Benchmarked Leads */}
           {benchmarkStep?.result?.leads && (
             <section style={styles.panel}>
               <h2 style={styles.h2}>Benchmarked Therapeutic Leads</h2>
@@ -253,7 +304,6 @@ export default function Home() {
             </section>
           )}
 
-          {/* Full Reasoning Trace */}
           <section style={styles.panel}>
             <h2 style={styles.h2}>Full Reasoning Trace</h2>
             {result.steps.map((step, i) => (

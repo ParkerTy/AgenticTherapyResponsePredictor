@@ -1,33 +1,77 @@
 {
   "disease": "Breast Cancer",
-  "subtype": "TNBC",
-  "description": "Triple-negative breast cancer",
+  "subtype": "Triple-Negative (TNBC)",
+  "description": "Triple-negative breast cancer (ER-, PR-, HER2-). PARP inhibitors are key in BRCA-mutated patients; immunotherapy is relevant in PD-L1-positive disease.",
   "cohortSource": "cBioPortal",
   "studyId": "brca_tcga",
-  "endpoints": ["therapy_response", "overall_survival"],
+  "endpoints": [
+    "/studies/brca_tcga",
+    "/studies/brca_tcga/samples",
+    "/molecular-profiles/brca_tcga_mutations/mutations/fetch"
+  ],
   "biomarkers": {
     "BRCA1": {
-      "role": "DNA repair deficiency",
-      "mutationEffect": "PARP inhibitor sensitivity"
+      "role": "DNA repair",
+      "mutationEffect": "hr_deficient",
+      "measurementType": "mutation"
     },
     "BRCA2": {
-      "role": "DNA repair deficiency",
-      "mutationEffect": "PARP inhibitor sensitivity"
+      "role": "DNA repair",
+      "mutationEffect": "hr_deficient",
+      "measurementType": "mutation"
     },
     "PD-L1": {
-      "role": "Immune checkpoint marker",
-      "expressionEffect": "Immunotherapy benefit when positive"
+      "role": "immune checkpoint",
+      "expressionEffect": "immunotherapy_sensitive",
+      "measurementType": "expression"
     }
   },
   "standardTherapies": [
-    "Chemotherapy (Anthracycline/Taxane)",
-    "PARP inhibitor (Olaparib/Talazoparib)",
-    "Immunotherapy (Pembrolizumab)"
+    "platinum_chemotherapy",
+    "parp_inhibitor",
+    "immunotherapy",
+    "taxane_chemotherapy"
   ],
   "heuristics": {
-    "BRCA1_mutated": { "parp_inhibitor": "favorable" },
-    "BRCA2_mutated": { "parp_inhibitor": "favorable" },
-    "PDL1_positive": { "immunotherapy": "favorable" },
-    "PDL1_negative": { "immunotherapy": "reduced" }
-  }
+    "BRCA1": {
+      "parp_inhibitor": "favorable",
+      "platinum_chemotherapy": "favorable"
+    },
+    "BRCA2": {
+      "parp_inhibitor": "favorable",
+      "platinum_chemotherapy": "favorable"
+    },
+    "PD-L1": {
+      "immunotherapy": "consider"
+    }
+  },
+  "interactionRules": [
+    {
+      "id": "brca1_brca2_co_mutation",
+      "name": "BRCA1 + BRCA2 co-mutation strengthens HR-deficient phenotype",
+      "description": "Co-mutation of BRCA1 and BRCA2 produces a more profound homologous recombination deficiency, strengthening the rationale for PARP inhibitors and platinum chemotherapy.",
+      "trigger": {
+        "type": "co_mutation",
+        "genes": ["BRCA1", "BRCA2"]
+      },
+      "effects": [
+        { "biomarker": "BRCA1", "therapy": "parp_inhibitor", "confidenceDelta": 0.10, "reason": "Compounded HR deficiency increases predicted PARP inhibitor sensitivity." },
+        { "biomarker": "BRCA2", "therapy": "parp_inhibitor", "confidenceDelta": 0.10, "reason": "Compounded HR deficiency increases predicted PARP inhibitor sensitivity." },
+        { "biomarker": "BRCA1", "therapy": "platinum_chemotherapy", "confidenceDelta": 0.10, "reason": "Compounded HR deficiency increases predicted platinum sensitivity." }
+      ]
+    },
+    {
+      "id": "pdl1_with_brca",
+      "name": "PD-L1 expression with BRCA mutation suggests combination strategy",
+      "description": "Concurrent BRCA mutation and PD-L1 expression supports a PARP + immunotherapy combination strategy, an active area of clinical investigation.",
+      "trigger": {
+        "type": "co_mutation",
+        "genes": ["BRCA1", "PD-L1"],
+        "anyOf": [["BRCA1", "PD-L1"], ["BRCA2", "PD-L1"]]
+      },
+      "effects": [
+        { "biomarker": "PD-L1", "therapy": "immunotherapy", "confidenceDelta": 0.10, "reason": "BRCA-deficient tumors may have higher neoantigen burden, augmenting immunotherapy response." }
+      ]
+    }
+  ]
 }

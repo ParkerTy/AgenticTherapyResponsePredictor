@@ -1,34 +1,72 @@
 {
   "disease": "Colorectal Cancer",
   "subtype": "CRC",
-  "description": "Colorectal cancer",
+  "description": "Colorectal adenocarcinoma. RAS pathway status governs anti-EGFR eligibility; MSI-high status supports immunotherapy.",
   "cohortSource": "cBioPortal",
   "studyId": "coadread_tcga",
-  "endpoints": ["therapy_response", "overall_survival"],
+  "endpoints": [
+    "/studies/coadread_tcga",
+    "/studies/coadread_tcga/samples",
+    "/molecular-profiles/coadread_tcga_mutations/mutations/fetch"
+  ],
   "biomarkers": {
     "KRAS": {
-      "role": "EGFR pathway activation",
-      "mutationEffect": "Resistance to anti-EGFR therapy"
+      "role": "oncogene",
+      "mutationEffect": "anti_egfr_resistant",
+      "measurementType": "mutation"
     },
     "NRAS": {
-      "role": "EGFR pathway activation",
-      "mutationEffect": "Resistance to anti-EGFR therapy"
+      "role": "oncogene",
+      "mutationEffect": "anti_egfr_resistant",
+      "measurementType": "mutation"
     },
     "MSI": {
-      "role": "Microsatellite instability",
-      "highEffect": "Immunotherapy sensitivity"
+      "role": "DNA repair status",
+      "highEffect": "immunotherapy_sensitive",
+      "measurementType": "microsatellite"
     }
   },
   "standardTherapies": [
-    "FOLFOX/FOLFIRI chemotherapy",
-    "Anti-EGFR (Cetuximab/Panitumumab)",
-    "Immunotherapy (Pembrolizumab for MSI-H)"
+    "anti_egfr",
+    "immunotherapy",
+    "fluoropyrimidine_chemotherapy",
+    "oxaliplatin"
   ],
   "heuristics": {
-    "KRAS_mutated": { "anti_egfr": "resistant" },
-    "NRAS_mutated": { "anti_egfr": "resistant" },
-    "KRAS_NRAS_wildtype": { "anti_egfr": "favorable" },
-    "MSI_high": { "immunotherapy": "favorable" },
-    "MSI_stable": { "immunotherapy": "reduced" }
-  }
+    "KRAS": {
+      "anti_egfr": "resistant"
+    },
+    "NRAS": {
+      "anti_egfr": "resistant"
+    },
+    "MSI": {
+      "immunotherapy": "favorable"
+    }
+  },
+  "interactionRules": [
+    {
+      "id": "kras_nras_co_mutation",
+      "name": "KRAS + NRAS co-mutation strengthens anti-EGFR resistance",
+      "description": "Concurrent activating mutations in KRAS and NRAS represent dual RAS pathway activation; anti-EGFR therapy is essentially excluded.",
+      "trigger": {
+        "type": "co_mutation",
+        "genes": ["KRAS", "NRAS"]
+      },
+      "effects": [
+        { "biomarker": "KRAS", "therapy": "anti_egfr", "confidenceDelta": 0.15, "reason": "Dual RAS activation makes anti-EGFR resistance prediction near-certain." }
+      ]
+    },
+    {
+      "id": "msi_with_kras",
+      "name": "MSI-high with KRAS mutation supports immunotherapy over anti-EGFR",
+      "description": "Even when anti-EGFR is excluded by RAS status, MSI-high tumors retain strong immunotherapy candidacy.",
+      "trigger": {
+        "type": "co_mutation",
+        "genes": ["KRAS", "MSI"]
+      },
+      "effects": [
+        { "biomarker": "MSI", "therapy": "immunotherapy", "confidenceDelta": 0.10, "reason": "MSI-high status is a class 1 immunotherapy biomarker; co-occurring RAS mutations do not negate it." }
+      ]
+    }
+  ]
 }

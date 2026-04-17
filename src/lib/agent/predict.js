@@ -1,18 +1,18 @@
 /**
  * Predict Step — Applies disease-specific heuristics to predict therapy response.
  *
- * Phase 3 update: now query-aware. When the parsed query mentions a therapy
- * class that matches a heuristic's therapy_key, a soft-nudge boost is applied
- * to that prediction's effective confidence score. The boost is fully logged
- * for audit (queryBoosted flag, queryBoost amount, originalConfidenceScore).
+ * Phase 3 updates:
+ *   - Step 1 added query-aware soft-nudge boost (matched therapy classes)
+ *   - Step 2 now applies biomarker interaction modifiers from interactions.js
+ *
+ * Final confidence score per prediction =
+ *   baseScore + queryBoost + sum(applicableInteractionDeltas)
+ * Clamped to [0, 1]. Each contributor is logged for full audit.
  */
 
 const CONFIDENCE_TO_SCORE = { high: 1.0, moderate: 0.6, low: 0.3 };
 const QUERY_BOOST = 0.1;
 
-// Maps query parser canonical therapy classes to keys that may appear inside
-// a disease config's heuristics.therapy_key. Used to identify which
-// predictions should receive the soft-nudge boost.
 const THERAPY_CLASS_KEYWORDS = {
   endocrine: ['endocrine', 'aromatase', 'fulvestrant', 'tamoxifen'],
   cdk46_inhibitor: ['cdk4', 'cdk46', 'cdk_4_6', 'palbociclib', 'ribociclib'],
@@ -23,10 +23,11 @@ const THERAPY_CLASS_KEYWORDS = {
   chemotherapy: ['chemotherapy', 'chemo', 'platinum', 'taxane'],
 };
 
-export async function predict(diseaseConfig, synthesisResult, parsedQuery = null) {
+export async function predict(diseaseConfig, synthesisResult, parsedQuery = null, interactionsResult = null) {
   const predictions = [];
   const evidenceTable = synthesisResult.evidenceTable || [];
   const queryTherapyClasses = parsedQuery?.therapyClasses || [];
+  const allModifiers = interactionsResult?.modifiers || [];
 
   for (const [conditionKey, therapyMap] of Object.entries(diseaseConfig.heuristics || {})) {
     const evidence = evidenceTable.find((e) => e.gene === conditionKey);
@@ -35,17 +36,25 @@ export async function predict(diseaseConfig, synthesisResult, parsedQuery = null
     const freq = parseFloat(evidence.mutationFrequency) || 0;
     const assocScore = evidence.diseaseAssociationScore || 0;
 
-    // Base confidence from frequency + association score
-    let confidence;
-    if (freq > 10 && assocScore > 0.5) confidence = 'high';
-    else if (freq > 5 || assocScore > 0.3) confidence = 'moderate';
-    else confidence = 'low';
+    let baseConfidence;
+    if (freq > 10 && assocScore > 0.5) baseConfidence = 'high';
+    else if (freq > 5 || assocScore > 0.3) baseConfidence = 'moderate';
+    else baseConfidence = 'low';
 
     for (const [therapyKey, baseEffect] of Object.entries(therapyMap)) {
-      const baseScore = CONFIDENCE_TO_SCORE[confidence] || 0.3;
+      const baseScore = CONFIDENCE_TO_SCORE[baseConfidence] || 0.3;
+
+      // Query soft-nudge
       const matchedClass = matchTherapyClass(therapyKey, queryTherapyClasses);
       const queryBoost = matchedClass ? QUERY_BOOST : 0;
-      const effectiveScore = Math.min(1.0, baseScore + queryBoost);
+
+      // Interaction modifiers that apply to this (biomarker, therapy) pair
+      const applicableMods = allModifiers.filter(
+        (m) => m.biomarker === conditionKey && m.therapy === therapyKey
+      );
+      const interactionDelta = applicableMods.reduce((sum, m) => sum + m.confidenceDelta, 0);
+
+      const effectiveScore = clamp01(baseScore + queryBoost + interactionDelta);
       const effectiveConfidence = scoreToConfidence(effectiveScore);
 
       predictions.push({
@@ -56,11 +65,13 @@ export async function predict(diseaseConfig, synthesisResult, parsedQuery = null
         predictedEffect: baseEffect,
         confidence: effectiveConfidence,
         confidenceScore: effectiveScore,
-        baseConfidence: confidence,
+        baseConfidence,
         baseConfidenceScore: baseScore,
         queryBoosted: !!matchedClass,
         queryBoost,
         matchedQueryClass: matchedClass,
+        interactionModifiers: applicableMods,
+        interactionDelta,
         supportingEvidence: {
           mutationFrequency: evidence.mutationFrequency,
           mutatedSamples: evidence.mutatedSamples,
@@ -69,12 +80,11 @@ export async function predict(diseaseConfig, synthesisResult, parsedQuery = null
           druggable: evidence.druggability,
           druggabilityCount: evidence.druggabilityCount,
         },
-        rationale: buildRationale(conditionKey, therapyKey, baseEffect, freq, assocScore, matchedClass),
+        rationale: buildRationale(conditionKey, therapyKey, baseEffect, freq, assocScore, matchedClass, applicableMods),
       });
     }
   }
 
-  // Sort: highest effective confidence score first
   predictions.sort((a, b) => b.confidenceScore - a.confidenceScore);
 
   return {
@@ -84,22 +94,18 @@ export async function predict(diseaseConfig, synthesisResult, parsedQuery = null
     moderateConfidence: predictions.filter((p) => p.confidence === 'moderate').length,
     lowConfidence: predictions.filter((p) => p.confidence === 'low').length,
     queryBoostsApplied: predictions.filter((p) => p.queryBoosted).length,
+    interactionModifiersApplied: predictions.filter((p) => p.interactionModifiers.length > 0).length,
     queryAware: !!parsedQuery && parsedQuery.hasRecognizedTerms,
+    interactionsAware: !!interactionsResult && interactionsResult.firedRules.length > 0,
   };
 }
 
-/**
- * Returns the matched therapy class canonical (e.g., 'parp_inhibitor') if the
- * heuristic's therapy_key matches any of the query's therapy classes; else null.
- */
 function matchTherapyClass(therapyKey, queryClasses) {
   if (!queryClasses || queryClasses.length === 0) return null;
   const tk = (therapyKey || '').toLowerCase();
   for (const qc of queryClasses) {
     const keywords = THERAPY_CLASS_KEYWORDS[qc] || [qc.toLowerCase()];
-    if (keywords.some((kw) => tk.includes(kw))) {
-      return qc;
-    }
+    if (keywords.some((kw) => tk.includes(kw))) return qc;
   }
   return null;
 }
@@ -110,12 +116,22 @@ function scoreToConfidence(score) {
   return 'low';
 }
 
-function buildRationale(gene, therapy, effect, freq, assocScore, matchedClass) {
+function clamp01(x) {
+  return Math.max(0, Math.min(1, x));
+}
+
+function buildRationale(gene, therapy, effect, freq, assocScore, matchedClass, mods) {
   const parts = [
     `${gene} status (mutation frequency ${freq.toFixed(2)}%, OpenTargets association ${assocScore.toFixed(3)}) suggests ${effect} response to ${therapy}.`,
   ];
   if (matchedClass) {
     parts.push(`Confidence soft-boosted by +${QUERY_BOOST.toFixed(2)} due to user query referencing the '${matchedClass}' therapy class.`);
+  }
+  if (mods && mods.length > 0) {
+    for (const m of mods) {
+      const sign = m.confidenceDelta >= 0 ? '+' : '';
+      parts.push(`Interaction rule '${m.ruleName}' applied (${sign}${m.confidenceDelta.toFixed(2)}): ${m.reason}`);
+    }
   }
   return parts.join(' ');
 }
