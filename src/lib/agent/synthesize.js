@@ -1,63 +1,86 @@
 /**
- * Step 3: Synthesize
- * Assembles an auditable evidence table from real retrieved data.
- * Links biomarker config knowledge with cBioPortal mutation data
- * and OpenTargets target-disease evidence.
+ * Synthesize Step — Builds the evidence table for downstream reasoning.
+ *
+ * Phase 3 Step 3 update: now also surfaces OpenTargets datatypeScores per
+ * gene as a flat lookup map, so benchmark.js can use clinical_precedence,
+ * cancer_gene_census, and known_drug as independent dimensions.
+ *
+ * Datatype scores are stored both as the original array (datatypeScores)
+ * and as a flat lookup object (datatypeScoreMap) for convenience.
  */
 
 export async function synthesize(diseaseConfig, retrieveResult) {
   const evidenceTable = [];
+  const biomarkerData = retrieveResult.biomarkerData || {};
+  const targetEvidence = retrieveResult.targetEvidence || [];
 
-  for (const [gene, info] of Object.entries(diseaseConfig.biomarkers)) {
-    const biomarkerData = retrieveResult.biomarkerData.find((b) => b.gene === gene) || {};
-    const targetData = retrieveResult.targetEvidence.find((t) => t.gene === gene) || {};
+  // Build a quick-lookup map by gene
+  const targetByGene = {};
+  for (const t of targetEvidence) {
+    targetByGene[t.gene] = t;
+  }
+
+  for (const [gene, props] of Object.entries(diseaseConfig.biomarkers || {})) {
+    const bio = biomarkerData[gene] || {};
+    const target = targetByGene[gene] || {};
+    const dtScores = target?.diseaseAssociation?.datatypeScores || [];
+    const datatypeScoreMap = buildDatatypeScoreMap(dtScores);
 
     evidenceTable.push({
       gene,
-      role: info.role,
-      effect: info.mutationEffect || info.expressionEffect || info.highEffect || 'Unknown',
-
-      // cBioPortal evidence
-      mutationFrequency: biomarkerData.mutationFrequency || '0%',
-      mutatedSamples: biomarkerData.mutatedSamples || 0,
-      totalSamples: biomarkerData.totalSamples || 0,
-
-      // OpenTargets evidence
-      targetId: targetData.targetId || null,
-      diseaseAssociationScore: targetData.diseaseAssociation?.overallScore || 0,
-      associationFound: targetData.diseaseAssociation?.found || false,
-      datatypeScores: targetData.diseaseAssociation?.datatypeScores || [],
-
-      // Druggability
-      druggabilityCount: targetData.druggabilityCount || 0,
-      druggability: targetData.druggability || [],
-      isEssential: targetData.isEssential || false,
-
-      // Provenance
-      dataSources: {
-        mutations: 'cBioPortal',
-        targetEvidence: 'OpenTargets',
-        config: diseaseConfig.subtype,
-      },
+      role: props.role,
+      effect:
+        props.mutationEffect ||
+        props.expressionEffect ||
+        props.highEffect ||
+        props.intactEffect ||
+        'unspecified',
+      measurementType: props.measurementType || 'mutation',
+      mutationFrequency: bio.frequency || '0.00%',
+      mutatedSamples: bio.mutatedSamples ?? 0,
+      totalSamples: bio.totalSamples ?? 0,
+      diseaseAssociationScore: target?.diseaseAssociation?.overallScore ?? null,
+      associationFound: target?.diseaseAssociation?.found ?? false,
+      datatypeScores: dtScores,
+      datatypeScoreMap,
+      druggabilityCount: target?.druggabilityCount ?? 0,
+      druggability: target?.druggability ?? [],
+      isEssential: target?.isEssential ?? null,
+      targetId: target?.targetId ?? null,
+      targetName: target?.targetName ?? null,
     });
   }
 
-  const genesWithMutations = evidenceTable.filter((e) => e.mutatedSamples > 0).length;
-  const genesWithAssociation = evidenceTable.filter((e) => e.associationFound).length;
-  const totalDruggable = evidenceTable.filter((e) => e.druggabilityCount > 0).length;
-
   return {
     evidenceTable,
-    totalItems: evidenceTable.length,
     summary: {
       genesAnalyzed: evidenceTable.length,
-      genesWithMutations,
-      genesWithAssociation,
-      totalDruggable,
-      cohortSize: retrieveResult.cohort.sampleCount,
-      studyName: retrieveResult.cohort.studyName,
+      genesWithMutations: evidenceTable.filter((e) => parseFloat(e.mutationFrequency) > 0).length,
+      genesWithAssociation: evidenceTable.filter((e) => e.associationFound).length,
+      totalDruggable: evidenceTable.filter((e) => e.druggabilityCount > 0).length,
+      cohortSize: retrieveResult.cohort?.totalSamples ?? 0,
+      studyName: retrieveResult.cohort?.name || retrieveResult.cohort?.studyId || 'unknown',
     },
-    synthesisMethod: 'Multi-source evidence integration (cBioPortal + OpenTargets + disease config)',
     synthesizedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * Converts an array of {id, score} datatype rows into a flat map.
+ * Common OpenTargets datatype IDs include:
+ *   - known_drug
+ *   - genetic_association
+ *   - somatic_mutation
+ *   - literature
+ *   - rna_expression
+ *   - affected_pathway
+ *   - clinical_precedence (note: also appears as 'known_drug' depending on schema version)
+ *   - cancer_gene_census (typically inside 'genetic_association' breakdown)
+ */
+function buildDatatypeScoreMap(datatypeScores) {
+  const map = {};
+  for (const d of datatypeScores || []) {
+    if (d?.id) map[d.id] = d.score ?? 0;
+  }
+  return map;
 }

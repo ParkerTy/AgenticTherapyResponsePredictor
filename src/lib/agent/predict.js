@@ -3,7 +3,9 @@
  *
  * Phase 3 updates:
  *   - Step 1 added query-aware soft-nudge boost (matched therapy classes)
- *   - Step 2 now applies biomarker interaction modifiers from interactions.js
+ *   - Step 2 applies biomarker interaction modifiers from interactions.js
+ *   - Step 3 propagates datatypeScoreMap into supportingEvidence so benchmark
+ *     can use OpenTargets datatype dimensions (clinical_precedence, etc.)
  *
  * Final confidence score per prediction =
  *   baseScore + queryBoost + sum(applicableInteractionDeltas)
@@ -44,11 +46,9 @@ export async function predict(diseaseConfig, synthesisResult, parsedQuery = null
     for (const [therapyKey, baseEffect] of Object.entries(therapyMap)) {
       const baseScore = CONFIDENCE_TO_SCORE[baseConfidence] || 0.3;
 
-      // Query soft-nudge
       const matchedClass = matchTherapyClass(therapyKey, queryTherapyClasses);
       const queryBoost = matchedClass ? QUERY_BOOST : 0;
 
-      // Interaction modifiers that apply to this (biomarker, therapy) pair
       const applicableMods = allModifiers.filter(
         (m) => m.biomarker === conditionKey && m.therapy === therapyKey
       );
@@ -77,6 +77,7 @@ export async function predict(diseaseConfig, synthesisResult, parsedQuery = null
           mutatedSamples: evidence.mutatedSamples,
           totalSamples: evidence.totalSamples,
           diseaseAssociationScore: evidence.diseaseAssociationScore,
+          datatypeScoreMap: evidence.datatypeScoreMap || {},
           druggable: evidence.druggability,
           druggabilityCount: evidence.druggabilityCount,
         },
