@@ -53,7 +53,7 @@ export default function Home() {
         <span style={styles.navBrand}>Agentic Therapy Response Predictor</span>
         <div style={styles.navLinks}>
           <a href="/" style={styles.navLink}>Home</a>
-          <span style={styles.navLinkDisabled} title="Coming in Phase 3 Step 4">History</span>
+          <a href="/history" style={styles.navLink}>History</a>
         </div>
       </nav>
 
@@ -147,7 +147,10 @@ export default function Home() {
             <section style={styles.panel}>
               <h2 style={styles.h2}>{reportStep.result.title}</h2>
               <p>{reportStep.result.summary}</p>
-              <p style={styles.muted}>Run ID: {result.runId} · Generated: {reportStep.result.generatedAt}</p>
+              <p style={styles.muted}>
+                Run ID: <a href={`/run/${result.runId}`} style={styles.viewLink}>{result.runId}</a>
+                {' · '}Generated: {reportStep.result.generatedAt}
+              </p>
             </section>
           )}
 
@@ -199,7 +202,6 @@ export default function Home() {
             </section>
           )}
 
-          {/* Biomarker Interactions — NEW Phase 3 Step 2 */}
           {interactionsStep && (
             <section style={styles.panel}>
               <h2 style={styles.h2}>Biomarker Interactions</h2>
@@ -362,7 +364,6 @@ const styles = {
   navBrand: { fontWeight: 600, fontSize: 14 },
   navLinks: { display: 'flex', gap: 16 },
   navLink: { color: '#4da6ff', textDecoration: 'none', fontSize: 14 },
-  navLinkDisabled: { color: '#555', fontSize: 14, cursor: 'not-allowed' },
   header: { padding: '32px' },
   h1: { margin: 0, fontSize: 28 },
   h2: { margin: '0 0 12px 0', fontSize: 20 },
@@ -388,4 +389,5 @@ const styles = {
   muted: { color: '#888', fontSize: 13 },
   chipsRow: { display: 'flex', flexWrap: 'wrap', marginTop: 8 },
   focusList: { margin: '6px 0 0 0', padding: '0 0 0 18px', color: '#ccc', fontSize: 14 },
+  viewLink: { color: '#4da6ff', textDecoration: 'none' },
 };

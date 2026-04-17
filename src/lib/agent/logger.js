@@ -2,19 +2,24 @@
  * Agent Logger
  * Writes agent runs, tool calls, evidence items, and reports to Supabase.
  * If Supabase is not configured, logs to console as fallback.
+ *
+ * Phase 3 Step 4 update: logAgentRun now writes the new parent_run_id and
+ * parsed_query columns (both nullable for backward compatibility).
  */
 
 import { supabase } from '../supabase.js';
 
-export async function logAgentRun(artifacts) {
+export async function logAgentRun(artifacts, parentRunId = null) {
   const record = {
     run_id: artifacts.runId,
-    disease_context: artifacts.disease,
+    disease_context: artifacts.diseaseKey || artifacts.diseaseSubtype || artifacts.disease,
     query: artifacts.query,
     status: artifacts.status,
-    config_used: { disease: artifacts.disease },
+    config_used: { disease: artifacts.disease, subtype: artifacts.diseaseSubtype },
     started_at: artifacts.startedAt,
     completed_at: artifacts.completedAt,
+    parent_run_id: parentRunId || null,
+    parsed_query: artifacts.parsedQuery || null,
   };
 
   if (!supabase) {
@@ -65,10 +70,10 @@ export async function logEvidenceItems(agentRunDbId, evidenceTable) {
     gene: item.gene,
     role: item.role,
     effect: item.effect,
-    data_source: item.dataSource,
-    score: null,
+    data_source: item.dataSource || 'cBioPortal+OpenTargets',
+    score: item.diseaseAssociationScore ?? null,
     url: null,
-    metadata: item.retrievedData,
+    metadata: item,
   }));
 
   if (!supabase) {
