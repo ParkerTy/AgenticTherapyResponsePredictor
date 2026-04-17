@@ -3,11 +3,13 @@
  *
  * Body: { diseaseContext: string, query: string }
  *
- * Phase 3 update: pre-validates the query using the deterministic parser. If
- * the parser finds zero recognizable terms, returns 400 with a helpful payload
- * that the UI can render as guidance (example queries + the controlled vocab).
+ * Phase 3 Step 1 added: pre-validates the query via deterministic parser. If
+ * the parser finds zero recognizable terms, returns 400 with example queries.
  *
- * Otherwise runs the full agent and logs every step to Supabase.
+ * Otherwise runs the full agent and logs every step to Supabase using the
+ * logger module's canonical signatures (logAgentRun(artifacts),
+ * logToolCall(dbId, step), logEvidenceItems(dbId, table),
+ * logReport(dbId, reportResult, artifacts)).
  */
 
 import { NextResponse } from 'next/server';
@@ -69,57 +71,25 @@ export async function POST(request) {
     // Run the agent
     const artifacts = await runAgent(diseaseConfig, query);
 
-    // Persist to Supabase (best-effort; logger handles missing config gracefully)
+    // Persist to Supabase using the logger's canonical signatures.
+    // Best-effort: failures are logged but do not break the response.
     try {
-      const agentRun = await logAgentRun({
-        run_id: artifacts.runId,
-        disease_context: diseaseContext,
-        query,
-        status: artifacts.status,
-        config_used: diseaseConfig,
-        started_at: artifacts.startedAt,
-        completed_at: artifacts.completedAt,
-      });
+      const agentRunRow = await logAgentRun(artifacts);
+      const agentRunDbId = agentRunRow?.id;
 
-      const agentRunId = agentRun?.[0]?.id;
-
-      if (agentRunId) {
+      if (agentRunDbId) {
         for (const step of artifacts.steps) {
-          await logToolCall({
-            agent_run_id: agentRunId,
-            step_name: step.step,
-            input: null,
-            output: step.result,
-            timestamp: step.timestamp,
-          });
+          await logToolCall(agentRunDbId, step);
         }
 
         const synthesisStep = artifacts.steps.find((s) => s.step === 'synthesize');
         if (synthesisStep?.result?.evidenceTable) {
-          await logEvidenceItems(
-            agentRunId,
-            synthesisStep.result.evidenceTable.map((e) => ({
-              gene: e.gene,
-              role: e.role,
-              effect: e.effect,
-              data_source: 'cBioPortal+OpenTargets',
-              score: e.diseaseAssociationScore || null,
-              url: null,
-              metadata: e,
-            }))
-          );
+          await logEvidenceItems(agentRunDbId, synthesisStep.result.evidenceTable);
         }
 
         const reportStep = artifacts.steps.find((s) => s.step === 'report');
         if (reportStep?.result) {
-          await logReport({
-            agent_run_id: agentRunId,
-            title: reportStep.result.title,
-            summary: reportStep.result.summary,
-            full_report: reportStep.result,
-            provenance: reportStep.result.provenance,
-            generated_at: reportStep.result.generatedAt,
-          });
+          await logReport(agentRunDbId, reportStep.result, artifacts);
         }
       }
     } catch (logErr) {

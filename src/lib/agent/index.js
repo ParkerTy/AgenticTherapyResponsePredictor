@@ -1,12 +1,13 @@
 /**
  * Agent Orchestrator — Runs the agent reasoning loop end-to-end.
  *
- * Phase 3 step order:
+ * Step order (Phase 3):
  *   parseQuery -> plan -> retrieve -> synthesize -> interactions
  *               -> predict -> generateLeads -> benchmark -> report
  *
- * The interactions step (Phase 3 Step 2) evaluates biomarker co-occurrence
- * and modifier rules and feeds modifiers into predict.
+ * Phase 3 Step 3 hotfix: report() now correctly receives diseaseConfig as its
+ * first argument (a regression from the Step 1 rewrite that called
+ * report(artifacts) with a single argument, causing a silent failure).
  */
 
 import { plan } from './plan.js';
@@ -58,7 +59,8 @@ export async function runAgent(diseaseConfig, query) {
     const benchmarkResult = await benchmark(leadsResult);
     artifacts.steps.push({ step: 'benchmark', result: benchmarkResult, timestamp: new Date().toISOString() });
 
-    const reportResult = await report(artifacts);
+    // Fixed: pass diseaseConfig as first argument to report()
+    const reportResult = await report(diseaseConfig, artifacts);
     artifacts.steps.push({ step: 'report', result: reportResult, timestamp: new Date().toISOString() });
 
     artifacts.completedAt = new Date().toISOString();
