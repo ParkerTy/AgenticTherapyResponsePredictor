@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-const diseaseOptions = [
+const DISEASE_OPTIONS = [
   { key: 'hr_pos_her2_neg', label: 'HR+/HER2- Breast Cancer' },
   { key: 'tnbc', label: 'Triple-Negative Breast Cancer (TNBC)' },
   { key: 'crc', label: 'Colorectal Cancer (CRC)' },
@@ -10,15 +10,15 @@ const diseaseOptions = [
 
 export default function Home() {
   const [diseaseContext, setDiseaseContext] = useState('hr_pos_her2_neg');
-  const [query, setQuery] = useState('Predict therapy response and benchmark leads');
-  const [result, setResult] = useState(null);
+  const [query, setQuery] = useState('Predict therapy response and rank lead candidates');
   const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
 
-  async function handleRun() {
+  const runAgent = async () => {
     setLoading(true);
-    setError(null);
     setResult(null);
+    setError(null);
     try {
       const res = await fetch('/api/agent', {
         method: 'POST',
@@ -26,15 +26,21 @@ export default function Home() {
         body: JSON.stringify({ diseaseContext, query }),
       });
       const data = await res.json();
-      if (!res.ok) setError(data.error || 'Something went wrong');
-      else setResult(data);
+      if (!res.ok) {
+        setError(data);
+      } else {
+        setResult(data);
+      }
     } catch (err) {
-      setError(err.message);
+      setError({ message: err.message });
     } finally {
       setLoading(false);
     }
-  }
+  };
 
+  // Pull individual step results out of the artifacts for rendering
+  const parsedQueryStep = result?.steps?.find((s) => s.step === 'parseQuery');
+  const planStep = result?.steps?.find((s) => s.step === 'plan');
   const retrieveStep = result?.steps?.find((s) => s.step === 'retrieve');
   const synthesizeStep = result?.steps?.find((s) => s.step === 'synthesize');
   const predictStep = result?.steps?.find((s) => s.step === 'predict');
@@ -42,247 +48,294 @@ export default function Home() {
   const reportStep = result?.steps?.find((s) => s.step === 'report');
 
   return (
-    <main style={{ maxWidth: '1000px', margin: '0 auto', padding: '40px 20px', fontFamily: 'sans-serif', color: '#e0e0e0', backgroundColor: '#111', minHeight: '100vh' }}>
-      <h1 style={{ color: '#fff' }}>Agentic AI Scientist</h1>
-      <p style={{ color: '#aaa' }}>
-        Therapy Response Prediction & Generative Lead Benchmarking.
-        <br />
-        <em>Inspired by BioAgents (2025) agentic reasoning framework.</em>
-      </p>
+    <main style={styles.main}>
+      <nav style={styles.nav}>
+        <span style={styles.navBrand}>Agentic Therapy Response Predictor</span>
+        <div style={styles.navLinks}>
+          <a href="/" style={styles.navLink}>Home</a>
+          <span style={styles.navLinkDisabled} title="Coming in Phase 3 Step 4">History</span>
+        </div>
+      </nav>
 
-      <hr style={{ margin: '20px 0', borderColor: '#333' }} />
+      <header style={styles.header}>
+        <h1 style={styles.h1}>Therapy Response Prediction & Lead Benchmarking</h1>
+        <p style={styles.subtitle}>
+          Reusable agentic AI workflow for oncology decision support. Inspired by BioAgents (2025).
+          Deterministic, reproducible, FAIR-compliant.
+        </p>
+      </header>
 
-      <div style={{ marginBottom: '16px' }}>
-        <label><strong style={{ color: '#fff' }}>Disease Context:</strong></label>
-        <br />
+      <section style={styles.panel}>
+        <label style={styles.label}>Disease Context</label>
         <select
+          style={styles.select}
           value={diseaseContext}
           onChange={(e) => setDiseaseContext(e.target.value)}
-          style={{ padding: '8px', fontSize: '16px', width: '100%', marginTop: '4px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }}
         >
-          {diseaseOptions.map((opt) => (
-            <option key={opt.key} value={opt.key}>{opt.label}</option>
+          {DISEASE_OPTIONS.map((d) => (
+            <option key={d.key} value={d.key}>{d.label}</option>
           ))}
         </select>
-      </div>
 
-      <div style={{ marginBottom: '16px' }}>
-        <label><strong style={{ color: '#fff' }}>Query:</strong></label>
-        <br />
+        <label style={{ ...styles.label, marginTop: 16 }}>Query</label>
         <input
           type="text"
+          style={styles.input}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          style={{ padding: '8px', fontSize: '16px', width: '100%', marginTop: '4px', backgroundColor: '#222', color: '#fff', border: '1px solid #444', borderRadius: '4px' }}
+          placeholder="Try: Predict PARP inhibitor response in BRCA-mutated patients"
         />
-      </div>
 
-      <button
-        onClick={handleRun}
-        disabled={loading}
-        style={{
-          padding: '10px 24px', fontSize: '16px',
-          backgroundColor: loading ? '#555' : '#0070f3', color: '#fff',
-          border: 'none', borderRadius: '4px',
-          cursor: loading ? 'not-allowed' : 'pointer',
-        }}
-      >
-        {loading ? 'Running Agent (this may take 15-30s)...' : 'Run Agent'}
-      </button>
+        <button onClick={runAgent} disabled={loading} style={styles.button}>
+          {loading ? 'Running agent...' : 'Run Agent'}
+        </button>
+      </section>
 
       {error && (
-        <div style={{ marginTop: '20px', padding: '12px', backgroundColor: '#3a1111', border: '1px solid #cc3333', borderRadius: '4px', color: '#ff8888' }}>
-          <strong>Error:</strong> {error}
-        </div>
+        <section style={styles.errorPanel}>
+          <h3 style={styles.errorTitle}>
+            {error.error === 'unrecognized_query' ? 'Query not recognized' : 'Error'}
+          </h3>
+          <p style={styles.errorMessage}>{error.message || error.error || 'Unknown error.'}</p>
+          {Array.isArray(error.examples) && error.examples.length > 0 && (
+            <>
+              <p style={styles.errorMessage}><strong>Try one of these example queries:</strong></p>
+              <ul style={styles.exampleList}>
+                {error.examples.map((ex, i) => (
+                  <li key={i}>
+                    <button
+                      type="button"
+                      style={styles.exampleButton}
+                      onClick={() => { setQuery(ex); setError(null); }}
+                    >
+                      {ex}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </section>
       )}
 
       {result && (
-        <div style={{ marginTop: '20px' }}>
-          {/* === Report Summary === */}
-          <div style={{ padding: '16px', backgroundColor: '#1a2a3a', border: '1px solid #0070f3', borderRadius: '8px', marginBottom: '20px' }}>
-            <h2 style={{ marginTop: 0, color: '#4da6ff' }}>Report Summary</h2>
-            <p><strong style={{ color: '#ccc' }}>Status:</strong> <span style={{ color: '#66cc66' }}>{result.status}</span></p>
-            <p><strong style={{ color: '#ccc' }}>Run ID:</strong> {result.runId}</p>
-            <p><strong style={{ color: '#ccc' }}>Disease:</strong> {result.disease}</p>
-            {reportStep?.result?.summary && (
-              <p style={{ fontSize: '15px', lineHeight: '1.5', color: '#ddd' }}>{reportStep.result.summary}</p>
-            )}
-          </div>
-
-          {/* === Cohort Info === */}
-          {retrieveStep?.result?.cohort && (
-            <div style={{ padding: '16px', border: '1px solid #333', borderRadius: '8px', marginBottom: '20px', backgroundColor: '#1a1a1a' }}>
-              <h2 style={{ marginTop: 0, color: '#4da6ff' }}>Cohort Data (cBioPortal)</h2>
-              <p><strong style={{ color: '#ccc' }}>Study:</strong> {retrieveStep.result.cohort.studyName}</p>
-              <p><strong style={{ color: '#ccc' }}>Study ID:</strong> {retrieveStep.result.cohort.studyId}</p>
-              <p><strong style={{ color: '#ccc' }}>Samples:</strong> {retrieveStep.result.cohort.sampleCount}</p>
-              <p><strong style={{ color: '#ccc' }}>Total Mutations Found:</strong> {retrieveStep.result.mutations?.totalMutations || 0}</p>
-            </div>
+        <>
+          {/* Interpreted Query — NEW Phase 3 Step 1 */}
+          {parsedQueryStep && (
+            <section style={styles.panel}>
+              <h2 style={styles.h2}>Interpreted Query</h2>
+              <p style={styles.muted}>
+                The agent parsed your natural-language query into structured intent. This drives downstream reasoning.
+              </p>
+              <div style={styles.chipsRow}>
+                <ChipGroup label="Therapy Classes" items={parsedQueryStep.result.therapyClasses} color="#4da6ff" />
+                <ChipGroup label="Biomarkers" items={parsedQueryStep.result.biomarkers} color="#ffcc00" />
+                <ChipGroup label="Clinical Settings" items={parsedQueryStep.result.clinicalSettings} color="#66cc66" />
+                <ChipGroup label="Intents" items={parsedQueryStep.result.intents} color="#cc99ff" />
+              </div>
+              {planStep?.result?.focusAreas && (
+                <div style={{ marginTop: 12 }}>
+                  <strong style={styles.muted}>Plan focus areas:</strong>
+                  <ul style={styles.focusList}>
+                    {planStep.result.focusAreas.map((f, i) => <li key={i}>{f}</li>)}
+                  </ul>
+                </div>
+              )}
+            </section>
           )}
 
-          {/* === Evidence Table === */}
-          {synthesizeStep?.result?.evidenceTable && (
-            <div style={{ padding: '16px', border: '1px solid #333', borderRadius: '8px', marginBottom: '20px', backgroundColor: '#1a1a1a' }}>
-              <h2 style={{ marginTop: 0, color: '#4da6ff' }}>Evidence Table</h2>
-              <p style={{ fontSize: '14px', color: '#888' }}>
-                Sources: cBioPortal + OpenTargets | Study: {synthesizeStep.result.summary?.studyName}
+          {/* Report Summary */}
+          {reportStep && (
+            <section style={styles.panel}>
+              <h2 style={styles.h2}>{reportStep.result.title}</h2>
+              <p>{reportStep.result.summary}</p>
+              <p style={styles.muted}>Run ID: {result.runId} · Generated: {reportStep.result.generatedAt}</p>
+            </section>
+          )}
+
+          {/* Cohort */}
+          {retrieveStep?.result?.cohort && (
+            <section style={styles.panel}>
+              <h2 style={styles.h2}>Cohort Data</h2>
+              <p>
+                <strong>Study:</strong> {retrieveStep.result.cohort.name || retrieveStep.result.cohort.studyId}<br />
+                <strong>Samples analyzed:</strong> {retrieveStep.result.cohort.totalSamples}
               </p>
+            </section>
+          )}
+
+          {/* Evidence Table */}
+          {synthesizeStep?.result?.evidenceTable && (
+            <section style={styles.panel}>
+              <h2 style={styles.h2}>Evidence Table</h2>
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                <table style={styles.table}>
                   <thead>
-                    <tr style={{ backgroundColor: '#0070f3' }}>
-                      <th style={thStyle}>Gene</th>
-                      <th style={thStyle}>Role</th>
-                      <th style={thStyle}>Effect</th>
-                      <th style={thStyle}>Mutation Freq</th>
-                      <th style={thStyle}>Mutated Samples</th>
-                      <th style={thStyle}>Disease Assoc. Score</th>
-                      <th style={thStyle}>Druggable</th>
+                    <tr>
+                      <th style={styles.th}>Gene</th>
+                      <th style={styles.th}>Role</th>
+                      <th style={styles.th}>Mutation Freq</th>
+                      <th style={styles.th}>Mutated / Total</th>
+                      <th style={styles.th}>Association Score</th>
+                      <th style={styles.th}>Druggable</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {synthesizeStep.result.evidenceTable.map((row, i) => (
-                      <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#222' : '#1a1a1a' }}>
-                        <td style={tdStyle}><strong style={{ color: '#fff' }}>{row.gene}</strong></td>
-                        <td style={tdStyle}>{row.role}</td>
-                        <td style={tdStyle}>{row.effect}</td>
-                        <td style={tdStyle}><strong style={{ color: '#ffcc00' }}>{row.mutationFrequency}</strong></td>
-                        <td style={tdStyle}>{row.mutatedSamples} / {row.totalSamples}</td>
-                        <td style={tdStyle}>
-                          <span style={{
-                            color: row.diseaseAssociationScore > 0.5 ? '#66cc66' :
-                                   row.diseaseAssociationScore > 0.2 ? '#ffcc00' : '#ff6666',
-                            fontWeight: 'bold',
-                          }}>
-                            {row.diseaseAssociationScore?.toFixed(3) || '0.000'}
-                          </span>
+                    {synthesizeStep.result.evidenceTable.map((e, i) => (
+                      <tr key={i}>
+                        <td style={styles.td}><strong>{e.gene}</strong></td>
+                        <td style={styles.td}>{e.role}</td>
+                        <td style={{ ...styles.td, color: '#ffcc00' }}>{e.mutationFrequency}</td>
+                        <td style={styles.td}>{e.mutatedSamples} / {e.totalSamples}</td>
+                        <td style={{ ...styles.td, color: assocColor(e.diseaseAssociationScore) }}>
+                          {e.diseaseAssociationScore?.toFixed(3) ?? '—'}
                         </td>
-                        <td style={tdStyle}>
-                          {row.druggabilityCount > 0 ? (
-                            <span style={{ color: '#66cc66', fontWeight: 'bold' }}>Yes ({row.druggabilityCount})</span>
-                          ) : (
-                            <span style={{ color: '#888' }}>No data</span>
-                          )}
+                        <td style={styles.td}>
+                          {e.druggabilityCount > 0
+                            ? <span style={{ color: '#66cc66' }}>Yes ({e.druggabilityCount})</span>
+                            : <span style={{ color: '#888' }}>No data</span>}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            </div>
+            </section>
           )}
 
-          {/* === Predictions === */}
+          {/* Predictions */}
           {predictStep?.result?.predictions && (
-            <div style={{ padding: '16px', border: '1px solid #333', borderRadius: '8px', marginBottom: '20px', backgroundColor: '#1a1a1a' }}>
-              <h2 style={{ marginTop: 0, color: '#4da6ff' }}>Therapy Response Predictions</h2>
-              <p style={{ fontSize: '14px', color: '#888' }}>
-                {predictStep.result.totalPredictions} predictions |
-                {' '}{predictStep.result.highConfidence} high |
-                {' '}{predictStep.result.moderateConfidence} moderate |
-                {' '}{predictStep.result.lowConfidence} low confidence
+            <section style={styles.panel}>
+              <h2 style={styles.h2}>Therapy Response Predictions</h2>
+              <p style={styles.muted}>
+                {predictStep.result.totalPredictions} prediction(s) ·
+                {' '}{predictStep.result.highConfidence} high · {predictStep.result.moderateConfidence} moderate · {predictStep.result.lowConfidence} low
+                {predictStep.result.queryBoostsApplied > 0 && (
+                  <> · <span style={{ color: '#4da6ff' }}>{predictStep.result.queryBoostsApplied} query-boosted</span></>
+                )}
               </p>
-              {predictStep.result.predictions.map((pred, i) => (
-                <div key={i} style={{
-                  padding: '10px', marginBottom: '8px', borderRadius: '4px',
-                  border: '1px solid',
-                  borderColor: pred.confidence === 'high' ? '#338833' :
-                               pred.confidence === 'moderate' ? '#886633' : '#444',
-                  backgroundColor: pred.confidence === 'high' ? '#1a2e1a' :
-                                   pred.confidence === 'moderate' ? '#2e2a1a' : '#222',
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                    <strong style={{ color: '#ddd' }}>{pred.condition} → {pred.therapy.replace(/_/g, ' ')}</strong>
-                    <span style={{
-                      padding: '2px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold',
-                      backgroundColor: pred.confidence === 'high' ? '#338833' :
-                                       pred.confidence === 'moderate' ? '#886633' : '#555',
-                      color: '#fff',
-                    }}>
-                      {pred.confidence} | {pred.predictedEffect}
-                    </span>
+              {predictStep.result.predictions.map((p, i) => (
+                <div key={i} style={styles.predictionCard}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong>{p.biomarker} → {p.therapy}</strong>
+                    <div>
+                      {p.queryBoosted && (
+                        <span style={{ ...styles.badge, background: '#0070f3', marginRight: 6 }}>
+                          query-boosted +{p.queryBoost.toFixed(2)}
+                        </span>
+                      )}
+                      <span style={{ ...styles.badge, background: confidenceBg(p.confidence) }}>
+                        {p.confidence} ({p.confidenceScore.toFixed(2)})
+                      </span>
+                    </div>
                   </div>
-                  <p style={{ margin: '6px 0 0', fontSize: '13px', color: '#999' }}>{pred.reasoning}</p>
+                  <p style={{ margin: '8px 0 0 0', fontSize: 14 }}>{p.rationale}</p>
                 </div>
               ))}
-            </div>
+            </section>
           )}
 
-          {/* === Benchmarked Leads === */}
-          {benchmarkStep?.result?.benchmarkedLeads && (
-            <div style={{ padding: '16px', border: '1px solid #333', borderRadius: '8px', marginBottom: '20px', backgroundColor: '#1a1a1a' }}>
-              <h2 style={{ marginTop: 0, color: '#4da6ff' }}>Benchmarked Therapeutic Leads</h2>
-              <p style={{ fontSize: '14px', color: '#888' }}>
-                {benchmarkStep.result.totalBenchmarked} leads |
-                {' '}{benchmarkStep.result.tier1Count} Tier 1 |
-                {' '}{benchmarkStep.result.tier2Count} Tier 2 |
-                {' '}{benchmarkStep.result.tier3Count} Tier 3
-              </p>
-              <p style={{ fontSize: '13px', color: '#666' }}>
-                Scoring: {benchmarkStep.result.scoringMethod}
-              </p>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-                  <thead>
-                    <tr style={{ backgroundColor: '#0070f3' }}>
-                      <th style={thStyle}>Target</th>
-                      <th style={thStyle}>Type</th>
-                      <th style={thStyle}>Mechanism</th>
-                      <th style={thStyle}>Composite</th>
-                      <th style={thStyle}>Tier</th>
-                      <th style={thStyle}>Confidence</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {benchmarkStep.result.benchmarkedLeads.map((lead, i) => (
-                      <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#222' : '#1a1a1a' }}>
-                        <td style={tdStyle}><strong style={{ color: '#fff' }}>{lead.primaryTarget}</strong></td>
-                        <td style={tdStyle}>{lead.leadType.replace(/_/g, ' ')}</td>
-                        <td style={tdStyle}>{lead.mechanismCategory}</td>
-                        <td style={tdStyle}>
-                          <strong style={{ color: '#ffcc00' }}>{lead.benchmarkScore.composite.toFixed(3)}</strong>
-                        </td>
-                        <td style={tdStyle}>
-                          <span style={{
-                            padding: '2px 6px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold',
-                            backgroundColor: lead.benchmarkScore.tier.includes('Tier 1') ? '#338833' :
-                                             lead.benchmarkScore.tier.includes('Tier 2') ? '#886633' : '#555',
-                            color: '#fff',
-                          }}>
-                            {lead.benchmarkScore.tier}
-                          </span>
-                        </td>
-                        <td style={tdStyle}>{lead.confidence}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+          {/* Benchmarked Leads */}
+          {benchmarkStep?.result?.leads && (
+            <section style={styles.panel}>
+              <h2 style={styles.h2}>Benchmarked Therapeutic Leads</h2>
+              {benchmarkStep.result.leads.map((lead, i) => (
+                <div key={i} style={styles.predictionCard}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong>{lead.leadName || lead.therapy}</strong>
+                    <span style={{ ...styles.badge, background: tierBg(lead.tier) }}>
+                      {lead.tier} · composite {lead.compositeScore?.toFixed?.(2) ?? lead.compositeScore}
+                    </span>
+                  </div>
+                  <p style={{ margin: '8px 0 0 0', fontSize: 14 }}>{lead.rationale}</p>
+                </div>
+              ))}
+            </section>
           )}
 
-          {/* === Raw Reasoning Trace === */}
-          <div style={{ padding: '16px', border: '1px solid #333', borderRadius: '8px', marginBottom: '20px', backgroundColor: '#1a1a1a' }}>
-            <h2 style={{ marginTop: 0, color: '#4da6ff' }}>Full Reasoning Trace</h2>
-            <p style={{ fontSize: '14px', color: '#888' }}>
-              {result.steps?.length || 0} steps completed. Click to expand raw JSON output.
-            </p>
-            {result.steps?.map((step, i) => (
-              <details key={i} style={{ marginBottom: '8px', border: '1px solid #333', borderRadius: '4px', padding: '8px', backgroundColor: '#222' }}>
-                <summary style={{ cursor: 'pointer', fontWeight: 'bold', color: '#ddd' }}>
-                  Step {i + 1}: {step.step} — {step.timestamp}
-                </summary>
-                <pre style={{ overflow: 'auto', fontSize: '12px', backgroundColor: '#111', padding: '8px', borderRadius: '4px', maxHeight: '400px', color: '#ccc' }}>
-                  {JSON.stringify(step.result, null, 2)}
-                </pre>
+          {/* Full Reasoning Trace */}
+          <section style={styles.panel}>
+            <h2 style={styles.h2}>Full Reasoning Trace</h2>
+            {result.steps.map((step, i) => (
+              <details key={i} style={styles.details}>
+                <summary style={styles.summary}>{i + 1}. {step.step} <span style={styles.muted}>({step.timestamp})</span></summary>
+                <pre style={styles.pre}>{JSON.stringify(step.result, null, 2)}</pre>
               </details>
             ))}
-          </div>
-        </div>
+          </section>
+        </>
       )}
     </main>
   );
 }
 
-const thStyle = { padding: '8px 10px', textAlign: 'left', borderBottom: '2px solid #1a1a1a', color: '#fff' };
-const tdStyle = { padding: '8px 10px', borderBottom: '1px solid #333', color: '#ccc' };
+function ChipGroup({ label, items, color }) {
+  return (
+    <div style={{ marginRight: 24, marginBottom: 8 }}>
+      <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>{label}</div>
+      {items && items.length > 0 ? (
+        items.map((it, i) => (
+          <span key={i} style={{ display: 'inline-block', background: color, color: '#111', padding: '2px 8px', borderRadius: 4, marginRight: 6, marginBottom: 4, fontSize: 13 }}>
+            {it}
+          </span>
+        ))
+      ) : (
+        <span style={{ fontSize: 13, color: '#666' }}>none detected</span>
+      )}
+    </div>
+  );
+}
+
+function assocColor(s) {
+  if (s == null) return '#666';
+  if (s > 0.5) return '#66cc66';
+  if (s > 0.2) return '#ffcc00';
+  return '#ff6666';
+}
+
+function confidenceBg(c) {
+  if (c === 'high') return '#2d8a2d';
+  if (c === 'moderate') return '#b58a00';
+  return '#555';
+}
+
+function tierBg(tier) {
+  if (!tier) return '#555';
+  if (tier.includes('1')) return '#2d8a2d';
+  if (tier.includes('2')) return '#b58a00';
+  return '#555';
+}
+
+const styles = {
+  main: { background: '#111', color: '#eee', minHeight: '100vh', padding: '0 0 60px 0', fontFamily: 'system-ui, -apple-system, sans-serif' },
+  nav: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 32px', background: '#1a1a1a', borderBottom: '1px solid #333' },
+  navBrand: { fontWeight: 600, fontSize: 14 },
+  navLinks: { display: 'flex', gap: 16 },
+  navLink: { color: '#4da6ff', textDecoration: 'none', fontSize: 14 },
+  navLinkDisabled: { color: '#555', fontSize: 14, cursor: 'not-allowed' },
+  header: { padding: '32px' },
+  h1: { margin: 0, fontSize: 28 },
+  h2: { margin: '0 0 12px 0', fontSize: 20 },
+  subtitle: { color: '#888', marginTop: 8 },
+  panel: { background: '#1a1a1a', border: '1px solid #333', borderRadius: 8, padding: 24, margin: '16px 32px' },
+  errorPanel: { background: '#2a1a1a', border: '1px solid #663333', borderRadius: 8, padding: 24, margin: '16px 32px' },
+  errorTitle: { margin: '0 0 8px 0', color: '#ff6666' },
+  errorMessage: { margin: '0 0 8px 0', color: '#eee' },
+  exampleList: { listStyle: 'none', padding: 0, margin: 0 },
+  exampleButton: { background: '#1a1a1a', border: '1px solid #4da6ff', color: '#4da6ff', padding: '6px 12px', borderRadius: 4, margin: '4px 0', cursor: 'pointer', fontSize: 14, textAlign: 'left', width: '100%' },
+  label: { display: 'block', fontSize: 14, color: '#aaa', marginBottom: 6 },
+  select: { width: '100%', padding: 8, background: '#111', color: '#eee', border: '1px solid #333', borderRadius: 4 },
+  input: { width: '100%', padding: 8, background: '#111', color: '#eee', border: '1px solid #333', borderRadius: 4 },
+  button: { marginTop: 16, padding: '10px 20px', background: '#0070f3', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 14 },
+  table: { width: '100%', borderCollapse: 'collapse', fontSize: 14 },
+  th: { textAlign: 'left', padding: '8px 12px', borderBottom: '1px solid #333', color: '#aaa', fontWeight: 600 },
+  td: { padding: '8px 12px', borderBottom: '1px solid #2a2a2a' },
+  predictionCard: { background: '#111', border: '1px solid #2a2a2a', borderRadius: 4, padding: 12, marginBottom: 10 },
+  badge: { padding: '2px 8px', borderRadius: 4, fontSize: 12, color: 'white' },
+  details: { marginBottom: 8, background: '#111', border: '1px solid #2a2a2a', borderRadius: 4, padding: 8 },
+  summary: { cursor: 'pointer', fontWeight: 600 },
+  pre: { background: '#0a0a0a', color: '#9cf', padding: 12, borderRadius: 4, overflowX: 'auto', fontSize: 12, maxHeight: 400 },
+  muted: { color: '#888', fontSize: 13 },
+  chipsRow: { display: 'flex', flexWrap: 'wrap', marginTop: 8 },
+  focusList: { margin: '6px 0 0 0', padding: '0 0 0 18px', color: '#ccc', fontSize: 14 },
+};
