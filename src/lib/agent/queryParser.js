@@ -32,6 +32,8 @@ const VOCAB = {
     parp_inhibitor: ['parp', 'parp inhibitor', 'olaparib', 'talazoparib', 'rucaparib'],
     immunotherapy: ['immunotherapy', 'immune checkpoint', 'checkpoint inhibitor', 'pembrolizumab', 'atezolizumab', 'pd-1', 'pd1', 'pd-l1 inhibitor'],
     anti_egfr: ['anti-egfr', 'anti egfr', 'cetuximab', 'panitumumab', 'egfr inhibitor'],
+    egfr_tki: ['egfr tki', 'osimertinib', 'erlotinib', 'gefitinib', 'tyrosine kinase inhibitor'],
+    alk_inhibitor: ['alk inhibitor', 'alectinib', 'crizotinib', 'lorlatinib', 'alk fusion'],
     chemotherapy: ['chemotherapy', 'chemo', 'platinum', 'taxane'],
   },
   clinicalSettings: {
@@ -55,6 +57,8 @@ const VOCAB = {
     KRAS: ['kras'],
     NRAS: ['nras'],
     MSI: ['msi', 'msi-high', 'msi-h', 'microsatellite'],
+    EGFR: ['egfr'],
+    ALK: ['alk'],
   },
   intents: {
     predict: ['predict', 'prediction', 'predicting', 'forecast'],
@@ -133,6 +137,11 @@ export function getExampleQueries(diseaseKey) {
       'Predict anti-EGFR response given KRAS status',
       'Rank immunotherapy candidates for MSI-high tumors',
       'Explain resistance mechanisms in metastatic CRC',
+    ],
+    luad: [
+      'Predict EGFR TKI response in EGFR-mutated lung adenocarcinoma',
+      'Compare ALK inhibitor options for ALK-rearranged NSCLC',
+      'Rank immunotherapy vs targeted therapy for KRAS-mutant LUAD',
     ],
   };
   return examples[diseaseKey] || [

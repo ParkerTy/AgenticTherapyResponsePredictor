@@ -1,0 +1,89 @@
+{
+  "disease": "Lung Cancer",
+  "subtype": "Lung Adenocarcinoma",
+  "description": "Non-small cell lung cancer, adenocarcinoma subtype",
+  "cohortSource": "cBioPortal",
+  "studyId": "luad_tcga",
+  "endpoints": ["therapy_response", "overall_survival"],
+  "biomarkers": {
+    "EGFR": {
+      "role": "Oncogenic driver",
+      "mutationEffect": "Sensitivity to EGFR tyrosine kinase inhibitors",
+      "measurementType": "mutation"
+    },
+    "ALK": {
+      "role": "Fusion/rearrangement driver",
+      "mutationEffect": "Sensitivity to ALK inhibitors",
+      "measurementType": "mutation"
+    },
+    "KRAS": {
+      "role": "Oncogenic driver",
+      "mutationEffect": "Resistance to EGFR-targeted therapy",
+      "measurementType": "mutation"
+    }
+  },
+  "standardTherapies": [
+    "EGFR TKI (Osimertinib/Erlotinib/Gefitinib)",
+    "ALK inhibitor (Alectinib/Crizotinib/Lorlatinib)",
+    "Immunotherapy (Pembrolizumab/Atezolizumab)",
+    "Platinum-based chemotherapy (Carboplatin/Pemetrexed)"
+  ],
+  "heuristics": {
+    "EGFR": {
+      "egfr_tki": "favorable",
+      "immunotherapy": "reduced"
+    },
+    "ALK": {
+      "alk_inhibitor": "favorable",
+      "immunotherapy": "reduced"
+    },
+    "KRAS": {
+      "egfr_tki": "resistant",
+      "immunotherapy": "consider",
+      "chemotherapy": "consider"
+    }
+  },
+  "interactionRules": [
+    {
+      "id": "egfr_kras_mutual_exclusion",
+      "name": "EGFR-KRAS mutual exclusivity",
+      "description": "EGFR and KRAS mutations are typically mutually exclusive in lung adenocarcinoma. Co-occurrence is rare and suggests complex biology.",
+      "trigger": {
+        "type": "co_mutation",
+        "genes": ["EGFR", "KRAS"]
+      },
+      "effects": [
+        {
+          "biomarker": "EGFR",
+          "therapy": "egfr_tki",
+          "confidenceDelta": -0.15,
+          "reason": "Co-occurring KRAS mutation may reduce EGFR TKI efficacy"
+        },
+        {
+          "biomarker": "KRAS",
+          "therapy": "immunotherapy",
+          "confidenceDelta": 0.10,
+          "reason": "KRAS-mutant tumors may benefit from immunotherapy combinations"
+        }
+      ]
+    },
+    {
+      "id": "alk_high_frequency",
+      "name": "ALK rearrangement detected",
+      "description": "ALK rearrangements predict strong response to ALK inhibitors, even at low mutation frequency detection.",
+      "trigger": {
+        "type": "single_mutation",
+        "genes": ["ALK"],
+        "frequencyThreshold": 1.0
+      },
+      "effects": [
+        {
+          "biomarker": "ALK",
+          "therapy": "alk_inhibitor",
+          "confidenceDelta": 0.10,
+          "reason": "Even low-frequency ALK alterations indicate ALK inhibitor sensitivity"
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 'use client';
 
 import { use, useEffect, useState } from 'react';
+import Link from 'next/link';
 
 export default function RunDetail({ params }) {
   const { runId } = use(params);
@@ -79,10 +80,13 @@ export default function RunDetail({ params }) {
   return (
     <main style={styles.main}>
       <nav style={styles.nav}>
-        <span style={styles.navBrand}>Agentic Therapy Response Predictor</span>
-        <div style={styles.navLinks}>
-          <a href="/" style={styles.navLink}>Home</a>
-          <a href="/history" style={styles.navLink}>History</a>
+        <strong style={{ color: '#fff', fontSize: '16px' }}>Agentic Therapy Response Predictor</strong>
+        <div style={{ display: 'flex', gap: '16px', fontSize: '14px' }}>
+          <Link href="/" style={{ color: '#aaa', textDecoration: 'none' }}>Home</Link>
+          <Link href="/compare" style={{ color: '#aaa', textDecoration: 'none' }}>Compare</Link>
+          <Link href="/interpret" style={{ color: '#aaa', textDecoration: 'none' }}>Interpret</Link>
+          <Link href="/methods" style={{ color: '#aaa', textDecoration: 'none' }}>Methods</Link>
+          <Link href="/history" style={{ color: '#aaa', textDecoration: 'none' }}>History</Link>
         </div>
       </nav>
 
@@ -109,7 +113,7 @@ export default function RunDetail({ params }) {
             <h2 style={styles.h2}>Overview</h2>
             <p><strong>Disease:</strong> {run.disease_context}</p>
             <p><strong>Status:</strong> <span style={{ ...styles.badge, background: statusBg(run.status) }}>{run.status}</span></p>
-            <p><strong>Query:</strong> "{run.query}"</p>
+            <p><strong>Query:</strong> &quot;{run.query}&quot;</p>
             <p style={styles.muted}>
               Started: {formatDate(run.started_at)} · Completed: {formatDate(run.completed_at)}
             </p>
@@ -122,12 +126,12 @@ export default function RunDetail({ params }) {
               <div style={{ marginBottom: 12 }}>
                 <div style={styles.muted}>Parent:</div>
                 <a href={`/run/${parent.run_id}`} style={styles.threadLink}>
-                  ← "{parent.query}" <span style={styles.muted}>({formatDate(parent.created_at)})</span>
+                  ← &quot;{parent.query}&quot; <span style={styles.muted}>({formatDate(parent.created_at)})</span>
                 </a>
               </div>
             )}
             <div style={styles.threadCurrent}>
-              <strong>{parent ? '↳ This run' : 'This run (top-level)'}:</strong> "{run.query}"
+              <strong>{parent ? '↳ This run' : 'This run (top-level)'}:</strong> &quot;{run.query}&quot;
             </div>
             {children.length > 0 && (
               <div style={{ marginTop: 12 }}>
@@ -136,7 +140,7 @@ export default function RunDetail({ params }) {
                   {children.map((c) => (
                     <li key={c.id} style={{ marginLeft: 16, marginTop: 6 }}>
                       ↳ <a href={`/run/${c.run_id}`} style={styles.threadLink}>
-                        "{c.query}" <span style={styles.muted}>({formatDate(c.created_at)})</span>
+                        &quot;{c.query}&quot; <span style={styles.muted}>({formatDate(c.created_at)})</span>
                       </a>
                     </li>
                   ))}
@@ -202,6 +206,8 @@ export default function RunDetail({ params }) {
                       <th style={styles.th}>Role</th>
                       <th style={styles.th}>Mut Freq</th>
                       <th style={styles.th}>Assoc Score</th>
+                      <th style={styles.th}>Pathway</th>
+                      <th style={styles.th}>Clinical Evidence</th>
                       <th style={styles.th}>Druggable</th>
                     </tr>
                   </thead>
@@ -212,7 +218,19 @@ export default function RunDetail({ params }) {
                         <td style={styles.td}>{e.role}</td>
                         <td style={styles.td}>{e.mutationFrequency}</td>
                         <td style={styles.td}>{e.diseaseAssociationScore?.toFixed?.(3) ?? '—'}</td>
-                        <td style={styles.td}>{e.druggabilityCount > 0 ? `Yes (${e.druggabilityCount})` : 'No data'}</td>
+                        <td style={styles.td}><span style={{ color: '#b088d0', fontSize: 12 }}>{e.reactomeTopPathway || '—'}</span></td>
+                        <td style={styles.td}>
+                          {e.civicFound
+                            ? <span style={{ color: '#4da6ff' }}>Level {e.civicBestLevel} ({e.civicEvidenceCount})</span>
+                            : <span style={{ color: '#666' }}>—</span>}
+                        </td>
+                        <td style={styles.td}>
+                          {e.dgidbFound && e.dgidbDrugCount > 0
+                            ? <span style={{ color: '#66cc66' }}>{e.dgidbDrugCount} drugs</span>
+                            : e.druggabilityCount > 0
+                              ? `Yes (${e.druggabilityCount})`
+                              : 'No data'}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -242,26 +260,29 @@ export default function RunDetail({ params }) {
               <h2 style={styles.h2}>Predictions</h2>
               {predictStep.output.predictions.map((p, i) => (
                 <div key={i} style={styles.predictionCard}>
-                  <strong>{p.biomarker} → {p.therapy}</strong>
+                  <strong>{p.condition} → {(p.therapy || p.therapy_key || '').replace(/_/g, ' ')}</strong>
                   <span style={{ ...styles.badge, background: confidenceBg(p.confidence), marginLeft: 8 }}>
-                    {p.confidence} ({p.confidenceScore?.toFixed?.(2)})
+                    {p.confidenceScore?.toFixed?.(2) || p.confidence} | {p.predictedEffect}
                   </span>
-                  <p style={{ margin: '8px 0 0 0', fontSize: 14 }}>{p.rationale}</p>
+                  {p.queryBoost > 0 && <span style={{ ...styles.badge, background: '#0070f3', marginLeft: 4 }}>query +{p.queryBoost.toFixed(2)}</span>}
+                  {p.interactionDelta !== 0 && p.interactionDelta !== undefined && <span style={{ ...styles.badge, background: '#7a4eb8', marginLeft: 4 }}>int {p.interactionDelta > 0 ? '+' : ''}{p.interactionDelta.toFixed(2)}</span>}
+                  {p.clinicalEvidenceBoost > 0 && <span style={{ ...styles.badge, background: '#2a6e8e', marginLeft: 4 }}>CIViC +{p.clinicalEvidenceBoost.toFixed(2)}</span>}
+                  <p style={{ margin: '8px 0 0 0', fontSize: 13, color: '#999' }}>{p.reasoning}</p>
                 </div>
               ))}
             </section>
           )}
 
-          {benchmarkStep?.output?.leads && (
+          {benchmarkStep?.output?.benchmarkedLeads && (
             <section style={styles.panel}>
               <h2 style={styles.h2}>Benchmarked Leads</h2>
-              {benchmarkStep.output.leads.map((lead, i) => (
+              {benchmarkStep.output.benchmarkedLeads.map((lead, i) => (
                 <div key={i} style={styles.predictionCard}>
-                  <strong>{lead.leadName || lead.therapy}</strong>
-                  <span style={{ ...styles.badge, background: tierBg(lead.tier), marginLeft: 8 }}>
-                    {lead.tier} · {lead.compositeScore?.toFixed?.(2)}
+                  <strong>{lead.primaryTarget}</strong> — {lead.mechanismCategory}
+                  <span style={{ ...styles.badge, background: tierBg(lead.benchmarkScore?.tier), marginLeft: 8 }}>
+                    {lead.benchmarkScore?.tier} · {lead.benchmarkScore?.composite?.toFixed?.(3)}
                   </span>
-                  <p style={{ margin: '8px 0 0 0', fontSize: 14 }}>{lead.rationale}</p>
+                  <p style={{ margin: '8px 0 0 0', fontSize: 13, color: '#999' }}>{lead.rationale}</p>
                 </div>
               ))}
             </section>
@@ -278,6 +299,11 @@ export default function RunDetail({ params }) {
           </section>
         </>
       )}
+
+      <footer style={{ marginTop: '40px', paddingTop: '16px', borderTop: '1px solid #333', textAlign: 'center', fontSize: '12px', color: '#555' }}>
+        <p>Ty Parker | INFO 603/404 Biological Data Management | Prof. Jake Y. Chen</p>
+        <p>Powered by cBioPortal · OpenTargets · CIViC · DGIdb · Reactome</p>
+      </footer>
     </main>
   );
 }
@@ -326,9 +352,6 @@ function statusBg(status) {
 const styles = {
   main: { background: '#111', color: '#eee', minHeight: '100vh', padding: '0 0 60px 0', fontFamily: 'system-ui, -apple-system, sans-serif' },
   nav: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 32px', background: '#1a1a1a', borderBottom: '1px solid #333' },
-  navBrand: { fontWeight: 600, fontSize: 14 },
-  navLinks: { display: 'flex', gap: 16 },
-  navLink: { color: '#4da6ff', textDecoration: 'none', fontSize: 14 },
   header: { padding: '32px' },
   h1: { margin: 0, fontSize: 28 },
   h2: { margin: '0 0 12px 0', fontSize: 20 },

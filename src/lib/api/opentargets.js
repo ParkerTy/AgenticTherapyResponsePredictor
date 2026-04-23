@@ -10,6 +10,7 @@ const BASE_URL = 'https://api.platform.opentargets.org/api/v4/graphql';
 const DISEASE_EFO_MAP = {
   'Breast Cancer': 'EFO_0000305',
   'Colorectal Cancer': 'EFO_0000365',
+  'Lung Cancer': 'EFO_0001071',
 };
 
 /**

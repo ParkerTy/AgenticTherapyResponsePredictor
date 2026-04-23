@@ -1,14 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 
 const DISEASE_LABELS = {
   hr_pos_her2_neg: 'HR+/HER2- Breast Cancer',
   tnbc: 'Triple-Negative Breast Cancer',
   crc: 'Colorectal Cancer',
+  luad: 'Lung Adenocarcinoma',
   'HR+/HER2-': 'HR+/HER2- Breast Cancer',
   'TNBC': 'Triple-Negative Breast Cancer',
   'CRC': 'Colorectal Cancer',
+  'Lung Adenocarcinoma': 'Lung Adenocarcinoma',
 };
 
 export default function History() {
@@ -46,10 +49,13 @@ export default function History() {
   return (
     <main style={styles.main}>
       <nav style={styles.nav}>
-        <span style={styles.navBrand}>Agentic Therapy Response Predictor</span>
-        <div style={styles.navLinks}>
-          <a href="/" style={styles.navLink}>Home</a>
-          <a href="/history" style={{ ...styles.navLink, color: '#fff', fontWeight: 600 }}>History</a>
+        <strong style={{ color: '#fff', fontSize: '16px' }}>Agentic Therapy Response Predictor</strong>
+        <div style={{ display: 'flex', gap: '16px', fontSize: '14px' }}>
+          <Link href="/" style={{ color: '#aaa', textDecoration: 'none' }}>Home</Link>
+          <Link href="/compare" style={{ color: '#aaa', textDecoration: 'none' }}>Compare</Link>
+          <Link href="/interpret" style={{ color: '#aaa', textDecoration: 'none' }}>Interpret</Link>
+          <Link href="/methods" style={{ color: '#aaa', textDecoration: 'none' }}>Methods</Link>
+          <Link href="/history" style={{ color: '#4da6ff', textDecoration: 'none' }}>History</Link>
         </div>
       </nav>
 
@@ -71,6 +77,7 @@ export default function History() {
           <option value="hr_pos_her2_neg">HR+/HER2- Breast Cancer</option>
           <option value="tnbc">Triple-Negative Breast Cancer</option>
           <option value="crc">Colorectal Cancer</option>
+          <option value="luad">Lung Adenocarcinoma</option>
         </select>
       </section>
 
@@ -130,6 +137,11 @@ export default function History() {
           </div>
         </section>
       )}
+
+      <footer style={{ marginTop: '40px', paddingTop: '16px', borderTop: '1px solid #333', textAlign: 'center', fontSize: '12px', color: '#555' }}>
+        <p>Ty Parker | INFO 603/404 Biological Data Management | Prof. Jake Y. Chen</p>
+        <p>Powered by cBioPortal · OpenTargets · CIViC · DGIdb · Reactome</p>
+      </footer>
     </main>
   );
 }
@@ -149,9 +161,6 @@ function statusBg(status) {
 const styles = {
   main: { background: '#111', color: '#eee', minHeight: '100vh', padding: '0 0 60px 0', fontFamily: 'system-ui, -apple-system, sans-serif' },
   nav: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 32px', background: '#1a1a1a', borderBottom: '1px solid #333' },
-  navBrand: { fontWeight: 600, fontSize: 14 },
-  navLinks: { display: 'flex', gap: 16 },
-  navLink: { color: '#4da6ff', textDecoration: 'none', fontSize: 14 },
   header: { padding: '32px' },
   h1: { margin: 0, fontSize: 28 },
   h2: { margin: '0 0 12px 0', fontSize: 20 },

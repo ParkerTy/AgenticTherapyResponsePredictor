@@ -7,6 +7,7 @@ const DISEASE_OPTIONS = [
   { key: 'hr_pos_her2_neg', label: 'HR+/HER2- Breast Cancer' },
   { key: 'tnbc', label: 'Triple-Negative Breast Cancer (TNBC)' },
   { key: 'crc', label: 'Colorectal Cancer (CRC)' },
+  { key: 'luad', label: 'Lung Adenocarcinoma (LUAD)' },
 ];
 
 const EXAMPLE_QUERIES = {
@@ -24,6 +25,11 @@ const EXAMPLE_QUERIES = {
     'Predict anti-EGFR resistance in KRAS-mutated CRC',
     'Evaluate immunotherapy for MSI-high colorectal cancer',
     'Compare targeted therapy options for metastatic CRC',
+  ],
+  luad: [
+    'Predict EGFR TKI response in EGFR-mutated lung adenocarcinoma',
+    'Evaluate ALK inhibitor options for ALK-rearranged NSCLC',
+    'Compare immunotherapy vs targeted therapy in KRAS-mutant LUAD',
   ],
 };
 
