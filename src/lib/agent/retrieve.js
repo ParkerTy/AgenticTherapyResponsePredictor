@@ -3,10 +3,16 @@
  * Pulls real clinical, genomic, and drug-target evidence from open APIs.
  * - cBioPortal: cohort data and mutation frequencies
  * - OpenTargets: target-disease associations and druggability
+ * - CIViC: clinical interpretation of variants in cancer
+ * - DGIdb: drug-gene interactions (actual drug names)
+ * - Reactome: biological pathway context
  */
 
 import { getStudy, getSamples, getMutations, computeMutationFrequencies } from '../api/cbioportal.js';
 import { getTargetId, getTargetDiseaseEvidence, getKnownDrugs } from '../api/opentargets.js';
+import { getClinicalEvidence } from '../api/civic.js';
+import { getDrugInteractions } from '../api/dgidb.js';
+import { getGenePathways } from '../api/reactome.js';
 
 export async function retrieve(diseaseConfig, planResult) {
   const genes = Object.keys(diseaseConfig.biomarkers);
@@ -78,6 +84,68 @@ export async function retrieve(diseaseConfig, planResult) {
     }
   }
 
+  // === CIViC: Clinical Evidence for Each Biomarker ===
+  const civicEvidence = [];
+
+  for (const gene of genes) {
+    try {
+      const evidence = await getClinicalEvidence(gene, diseaseConfig.disease);
+      civicEvidence.push(evidence);
+    } catch (err) {
+      errors.push({ source: 'CIViC', step: gene, error: err.message });
+      civicEvidence.push({
+        gene,
+        totalEvidenceItems: 0,
+        bestEvidenceLevel: null,
+        evidenceByLevel: {},
+        evidenceByType: {},
+        therapies: [],
+        predictiveCount: 0,
+        items: [],
+        found: false,
+      });
+    }
+  }
+
+  // === DGIdb: Drug-Gene Interactions ===
+  const dgidbEvidence = [];
+
+  for (const gene of genes) {
+    try {
+      const drugData = await getDrugInteractions(gene);
+      dgidbEvidence.push(drugData);
+    } catch (err) {
+      errors.push({ source: 'DGIdb', step: gene, error: err.message });
+      dgidbEvidence.push({
+        gene,
+        totalInteractions: 0,
+        approvedDrugCount: 0,
+        drugs: [],
+        allDrugNames: [],
+        found: false,
+      });
+    }
+  }
+
+  // === Reactome: Pathway Context ===
+  const reactomeEvidence = [];
+
+  for (const gene of genes) {
+    try {
+      const pathwayData = await getGenePathways(gene);
+      reactomeEvidence.push(pathwayData);
+    } catch (err) {
+      errors.push({ source: 'Reactome', step: gene, error: err.message });
+      reactomeEvidence.push({
+        gene,
+        totalPathways: 0,
+        topPathway: null,
+        pathways: [],
+        found: false,
+      });
+    }
+  }
+
   return {
     source: 'live',
     cohort: {
@@ -99,6 +167,9 @@ export async function retrieve(diseaseConfig, planResult) {
       totalSamples: samples.length,
     })),
     targetEvidence,
+    civicEvidence,
+    dgidbEvidence,
+    reactomeEvidence,
     errors,
     retrievedAt: new Date().toISOString(),
   };

@@ -1,15 +1,11 @@
 /**
- * Step 7: Report
- *
- * Produces a structured, reproducible output with full provenance. Phase 3
- * update: surfaces the new parseQuery and interactions steps in the audit
- * trail, and uses .find() by step name for resilience against future
- * pipeline ordering changes.
+ * Step 9: Report
+ * Produces a structured, reproducible output with full provenance.
+ * Surfaces data from all 9 pipeline steps and all 5 data sources.
  */
 
 export async function report(diseaseConfig, artifacts) {
-  const parseStep = artifacts.steps.find((s) => s.step === 'parseQuery');
-  const planStep = artifacts.steps.find((s) => s.step === 'plan');
+  const parseQueryStep = artifacts.steps.find((s) => s.step === 'parseQuery');
   const synthesizeStep = artifacts.steps.find((s) => s.step === 'synthesize');
   const interactionsStep = artifacts.steps.find((s) => s.step === 'interactions');
   const predictStep = artifacts.steps.find((s) => s.step === 'predict');
@@ -18,8 +14,8 @@ export async function report(diseaseConfig, artifacts) {
   const summary = synthesizeStep?.result?.summary || {};
   const predictions = predictStep?.result || {};
   const benchmarked = benchmarkStep?.result || {};
+  const parsedQuery = parseQueryStep?.result || null;
   const interactions = interactionsStep?.result || {};
-  const parsed = parseStep?.result || {};
 
   return {
     title: `Therapy Response & Lead Benchmarking Report — ${diseaseConfig.subtype}`,
@@ -27,30 +23,30 @@ export async function report(diseaseConfig, artifacts) {
       disease: diseaseConfig.disease,
       subtype: diseaseConfig.subtype,
       studyId: diseaseConfig.studyId,
-      diseaseKey: diseaseConfig.diseaseKey || null,
     },
-    queryInterpretation: {
-      originalQuery: parsed.originalQuery || artifacts.query,
-      therapyClasses: parsed.therapyClasses || [],
-      biomarkers: parsed.biomarkers || [],
-      clinicalSettings: parsed.clinicalSettings || [],
-      intents: parsed.intents || [],
-      hasRecognizedTerms: parsed.hasRecognizedTerms ?? false,
-      focusAreas: planStep?.result?.focusAreas || [],
-    },
+    queryInterpretation: parsedQuery ? {
+      originalQuery: parsedQuery.originalQuery,
+      therapyClasses: parsedQuery.therapyClasses || [],
+      clinicalSettings: parsedQuery.clinicalSettings || [],
+      biomarkers: parsedQuery.biomarkers || [],
+      intents: parsedQuery.intents || [],
+      hasRecognizedTerms: parsedQuery.hasRecognizedTerms || false,
+    } : null,
     cohortSummary: {
       studyName: summary.studyName || 'N/A',
-      cohortSize: summary.cohortSize || 0,
+      cohortSize: summary.cohortSize || summary.sampleCount || 0,
       genesAnalyzed: summary.genesAnalyzed || 0,
       genesWithMutations: summary.genesWithMutations || 0,
       genesWithAssociation: summary.genesWithAssociation || 0,
       totalDruggable: summary.totalDruggable || 0,
+      genesWithCivicEvidence: summary.genesWithCivicEvidence || 0,
+      genesWithDgidbDrugs: summary.genesWithDgidbDrugs || 0,
+      genesWithPathways: summary.genesWithPathways || 0,
     },
     interactionSummary: {
       rulesEvaluated: interactions.rulesEvaluated || 0,
-      rulesFired: interactions.firedRules?.length || 0,
-      rulesSkipped: interactions.skippedRules?.length || 0,
-      firedRuleNames: (interactions.firedRules || []).map((r) => r.name),
+      rulesFired: (interactions.firedRules || []).length,
+      modifiersApplied: (interactions.modifiers || []).length,
     },
     predictionSummary: {
       totalPredictions: predictions.totalPredictions || 0,
@@ -59,41 +55,36 @@ export async function report(diseaseConfig, artifacts) {
       lowConfidence: predictions.lowConfidence || 0,
       queryBoostsApplied: predictions.queryBoostsApplied || 0,
       interactionModifiersApplied: predictions.interactionModifiersApplied || 0,
+      clinicalBoostsApplied: predictions.clinicalBoostsApplied || 0,
     },
     benchmarkSummary: {
-      totalLeads: benchmarked.totalLeads || 0,
+      totalBenchmarked: benchmarked.totalBenchmarked || 0,
       tier1: benchmarked.tier1Count || 0,
       tier2: benchmarked.tier2Count || 0,
       tier3: benchmarked.tier3Count || 0,
-      scoringMethod: '6-dimension composite (clinical_precedence, cancer_gene_census, known_drug, mutation frequency, druggability, mechanistic plausibility)',
-      weightsUsed: benchmarked.weightsUsed || null,
-      tierThresholds: benchmarked.tierThresholds || null,
+      scoringMethod: benchmarked.scoringMethod || 'N/A',
+      tierThresholds: benchmarked.tierThresholds || { tier1: '>= 0.60', tier2: '>= 0.35', tier3: '< 0.35' },
     },
-    summary: buildOneLineSummary(diseaseConfig, summary, predictions, benchmarked, interactions),
+    summary: `Agentic analysis completed for ${diseaseConfig.subtype}. ` +
+      `Analyzed ${summary.genesAnalyzed || 0} genes across ${summary.cohortSize || summary.sampleCount || 0} samples using 5 data sources. ` +
+      `Generated ${predictions.totalPredictions || 0} predictions (${predictions.highConfidence || 0} high, ${predictions.moderateConfidence || 0} moderate, ${predictions.lowConfidence || 0} low confidence). ` +
+      `Applied ${predictions.clinicalBoostsApplied || 0} CIViC clinical evidence boosts. ` +
+      `Benchmarked ${benchmarked.totalBenchmarked || 0} leads across 7 dimensions (${benchmarked.tier1Count || 0} Tier 1, ${benchmarked.tier2Count || 0} Tier 2, ${benchmarked.tier3Count || 0} Tier 3).`,
     stepsCompleted: artifacts.steps.map((s) => s.step),
     provenance: {
       runId: artifacts.runId,
       startedAt: artifacts.startedAt,
-      configUsed: diseaseConfig.diseaseKey || diseaseConfig.subtype,
+      configUsed: diseaseConfig.subtype,
       dataSources: [
         `cBioPortal (study: ${diseaseConfig.studyId})`,
         'OpenTargets GraphQL API',
+        'CIViC (Clinical Interpretation of Variants in Cancer)',
+        'DGIdb (Drug Gene Interaction Database)',
+        'Reactome Pathway Knowledgebase',
       ],
       apiCallsLogged: true,
       deterministic: true,
     },
     generatedAt: new Date().toISOString(),
   };
-}
-
-function buildOneLineSummary(diseaseConfig, summary, predictions, benchmarked, interactions) {
-  const firedCount = interactions?.firedRules?.length || 0;
-  const interactionNote = firedCount > 0 ? ` ${firedCount} interaction rule(s) fired.` : '';
-  return (
-    `Agentic analysis completed for ${diseaseConfig.subtype}. ` +
-    `Analyzed ${summary.genesAnalyzed || 0} genes across ${summary.cohortSize || 0} samples. ` +
-    `Generated ${predictions.totalPredictions || 0} predictions (${predictions.highConfidence || 0} high confidence). ` +
-    `Benchmarked ${benchmarked.totalLeads || 0} leads (${benchmarked.tier1Count || 0} Tier 1).` +
-    interactionNote
-  );
 }

@@ -1,118 +1,130 @@
 /**
- * Benchmark Step — Multi-dimensional composite scoring of therapeutic leads.
+ * Step 8: Benchmark
+ * Compares proposed leads against known therapies using multi-source evidence.
+ * 7-dimension composite scoring with transparent weights.
  *
- * Phase 3 Step 3: composite now uses 6 weighted dimensions, with the previous
- * single 'targetDiseaseScore' replaced by three OpenTargets datatype-derived
- * scores (clinical_precedence, cancer_gene_census/genetic_association,
- * known_drug). All weights sum to 1.0; tier bands unchanged for backward
- * comparability.
+ * Dimensions and weights (sum to 1.0):
+ *   clinicalPrecedenceScore   = clamp01(dtMap.known_drug ?? 0)          × 0.15
+ *   cancerGeneCensusScore     = clamp01(dtMap.genetic_association ?? 0)  × 0.10
+ *   knownDrugEvidenceScore    = clamp01(dtMap.somatic_mutation ?? 0)     × 0.10
+ *   mutationFrequencyScore    = clamp01(freqRaw / 30)                   × 0.20
+ *   drugEvidenceScore         = clamp01(druggabilityCount / 10)          × 0.15
+ *   mechanisticPlausibility   = (targeted_therapy ? 0.8 : 0.5)          × 0.15
+ *   clinicalEvidenceScore     = CIViC level mapping (A=1.0 ... E=0.2)   × 0.15
  *
- * Dimensions and weights:
- *   clinicalPrecedenceScore   0.20  (OpenTargets 'known_drug' datatype, strongest clinical evidence)
- *   cancerGeneCensusScore     0.15  (OpenTargets 'genetic_association', encompasses curated driver lists)
- *   knownDrugEvidenceScore    0.15  (OpenTargets 'somatic_mutation' as proxy for tumor-relevant drug evidence)
- *   mutationFrequencyScore    0.20  (cohort-level prevalence, freq/30 capped at 1)
- *   drugEvidenceScore         0.15  (tractability/druggability count, count/10 capped at 1)
- *   mechanisticPlausibility   0.15  (0.8 targeted_therapy, 0.5 alternative_mechanism)
- *
- * Each lead's composite, dimension breakdown, weights, and tier are returned
- * for full audit transparency.
+ * Tiers:
+ *   composite >= 0.60 → 'Tier 1 — Strong'
+ *   composite >= 0.35 → 'Tier 2 — Moderate'
+ *   else → 'Tier 3 — Exploratory'
  */
 
-const WEIGHTS = {
-  clinicalPrecedenceScore: 0.20,
-  cancerGeneCensusScore: 0.15,
-  knownDrugEvidenceScore: 0.15,
-  mutationFrequencyScore: 0.20,
-  drugEvidenceScore: 0.15,
-  mechanisticPlausibility: 0.15,
-};
-
-const TIER_THRESHOLDS = {
-  tier1: 0.60,
-  tier2: 0.35,
-};
-
 export async function benchmark(leadsResult) {
-  const leads = leadsResult.leads || [];
-  const benchmarked = [];
+  const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
-  for (const lead of leads) {
+  // Map CIViC evidence levels to scores
+  const civicLevelScores = { A: 1.0, B: 0.8, C: 0.6, D: 0.4, E: 0.2 };
+
+  const benchmarked = leadsResult.leads.map((lead) => {
+    // Extract data from lead and its supporting evidence
+    const freqRaw = parseFloat(lead.supportingMutationFrequency) || 0;
+    const druggabilityCount = lead.druggabilityCount || lead.knownDrugsInClass || 0;
     const dtMap = lead.datatypeScoreMap || {};
 
-    // Map OpenTargets datatype IDs to our three evidence-strength dimensions.
-    // We use defensive lookups because not all targets have all datatypes.
+    // === Dimension 1: Clinical Precedence (OpenTargets known_drug datatype) ===
     const clinicalPrecedenceScore = clamp01(dtMap.known_drug ?? 0);
+
+    // === Dimension 2: Cancer Gene Census (OpenTargets genetic_association datatype) ===
     const cancerGeneCensusScore = clamp01(dtMap.genetic_association ?? 0);
+
+    // === Dimension 3: Known Drug Evidence (OpenTargets somatic_mutation datatype) ===
     const knownDrugEvidenceScore = clamp01(dtMap.somatic_mutation ?? 0);
 
-    const freqRaw = parseFloat(lead.supportingMutationFrequency) || 0;
+    // === Dimension 4: Mutation Frequency (cBioPortal) ===
     const mutationFrequencyScore = clamp01(freqRaw / 30);
 
-    const drugEvidenceScore = clamp01((lead.knownDrugsInClass ?? 0) / 10);
+    // === Dimension 5: Drug Evidence (OpenTargets druggability count) ===
+    const drugEvidenceScore = clamp01(druggabilityCount / 10);
 
-    const mechanisticPlausibility = lead.type === 'targeted_therapy' ? 0.8 : 0.5;
+    // === Dimension 6: Mechanistic Plausibility (lead type) ===
+    const mechanisticPlausibility = lead.leadType === 'targeted_therapy' ? 0.8 : 0.5;
 
-    const dimensions = {
-      clinicalPrecedenceScore,
-      cancerGeneCensusScore,
-      knownDrugEvidenceScore,
-      mutationFrequencyScore,
-      drugEvidenceScore,
-      mechanisticPlausibility,
+    // === Dimension 7: Clinical Evidence (CIViC) ===
+    const civicLevel = lead.civicBestLevel || null;
+    const civicBaseScore = civicLevelScores[civicLevel] || 0;
+    // Boost slightly if there are many predictive evidence items
+    const civicPredictiveBoost = Math.min((lead.civicPredictiveCount || 0) / 20, 0.2);
+    const clinicalEvidenceScore = clamp01(civicBaseScore + civicPredictiveBoost);
+
+    // === Weights (sum to 1.0) ===
+    const weights = {
+      clinicalPrecedence: 0.15,
+      cancerGeneCensus: 0.10,
+      knownDrugEvidence: 0.10,
+      mutationFrequency: 0.20,
+      drugEvidence: 0.15,
+      mechanisticPlausibility: 0.15,
+      clinicalEvidence: 0.15,
     };
 
-    const compositeScore = clamp01(
-      dimensions.clinicalPrecedenceScore * WEIGHTS.clinicalPrecedenceScore +
-      dimensions.cancerGeneCensusScore * WEIGHTS.cancerGeneCensusScore +
-      dimensions.knownDrugEvidenceScore * WEIGHTS.knownDrugEvidenceScore +
-      dimensions.mutationFrequencyScore * WEIGHTS.mutationFrequencyScore +
-      dimensions.drugEvidenceScore * WEIGHTS.drugEvidenceScore +
-      dimensions.mechanisticPlausibility * WEIGHTS.mechanisticPlausibility
+    // === Composite Score ===
+    const composite = clamp01(
+      clinicalPrecedenceScore * weights.clinicalPrecedence +
+      cancerGeneCensusScore * weights.cancerGeneCensus +
+      knownDrugEvidenceScore * weights.knownDrugEvidence +
+      mutationFrequencyScore * weights.mutationFrequency +
+      drugEvidenceScore * weights.drugEvidence +
+      mechanisticPlausibility * weights.mechanisticPlausibility +
+      clinicalEvidenceScore * weights.clinicalEvidence
     );
 
-    const tier = assignTier(compositeScore);
+    // === Tier Assignment ===
+    let tier;
+    if (composite >= 0.60) tier = 'Tier 1 — Strong';
+    else if (composite >= 0.35) tier = 'Tier 2 — Moderate';
+    else tier = 'Tier 3 — Exploratory';
 
-    benchmarked.push({
+    // Build rationale string
+    const rationale = [
+      `Clinical precedence: ${clinicalPrecedenceScore.toFixed(2)} × ${weights.clinicalPrecedence}`,
+      `Cancer gene census: ${cancerGeneCensusScore.toFixed(2)} × ${weights.cancerGeneCensus}`,
+      `Known drug evidence: ${knownDrugEvidenceScore.toFixed(2)} × ${weights.knownDrugEvidence}`,
+      `Mutation frequency: ${mutationFrequencyScore.toFixed(2)} × ${weights.mutationFrequency}`,
+      `Drug evidence: ${drugEvidenceScore.toFixed(2)} × ${weights.drugEvidence}`,
+      `Mechanistic plausibility: ${mechanisticPlausibility.toFixed(2)} × ${weights.mechanisticPlausibility}`,
+      `Clinical evidence (CIViC${civicLevel ? ' Level ' + civicLevel : ''}): ${clinicalEvidenceScore.toFixed(2)} × ${weights.clinicalEvidence}`,
+    ].join(' | ');
+
+    return {
       ...lead,
-      compositeScore,
-      tier,
-      dimensions,
-      weights: WEIGHTS,
-      benchmarkRationale: buildBenchmarkRationale(lead, dimensions, compositeScore, tier),
-    });
-  }
+      benchmarkScore: {
+        dimensions: {
+          clinicalPrecedenceScore: parseFloat(clinicalPrecedenceScore.toFixed(3)),
+          cancerGeneCensusScore: parseFloat(cancerGeneCensusScore.toFixed(3)),
+          knownDrugEvidenceScore: parseFloat(knownDrugEvidenceScore.toFixed(3)),
+          mutationFrequencyScore: parseFloat(mutationFrequencyScore.toFixed(3)),
+          drugEvidenceScore: parseFloat(drugEvidenceScore.toFixed(3)),
+          mechanisticPlausibility: parseFloat(mechanisticPlausibility.toFixed(3)),
+          clinicalEvidenceScore: parseFloat(clinicalEvidenceScore.toFixed(3)),
+        },
+        weights,
+        composite: parseFloat(composite.toFixed(3)),
+        tier,
+        benchmarkRationale: rationale,
+      },
+    };
+  });
 
-  benchmarked.sort((a, b) => b.compositeScore - a.compositeScore);
+  // Sort by composite score descending
+  benchmarked.sort((a, b) => b.benchmarkScore.composite - a.benchmarkScore.composite);
 
   return {
-    leads: benchmarked,
-    totalLeads: benchmarked.length,
-    tier1Count: benchmarked.filter((l) => l.tier === 'Tier 1 Strong').length,
-    tier2Count: benchmarked.filter((l) => l.tier === 'Tier 2 Moderate').length,
-    tier3Count: benchmarked.filter((l) => l.tier === 'Tier 3 Exploratory').length,
-    weightsUsed: WEIGHTS,
-    tierThresholds: TIER_THRESHOLDS,
+    benchmarkedLeads: benchmarked,
+    totalBenchmarked: benchmarked.length,
+    tier1Count: benchmarked.filter((b) => b.benchmarkScore.tier.includes('Tier 1')).length,
+    tier2Count: benchmarked.filter((b) => b.benchmarkScore.tier.includes('Tier 2')).length,
+    tier3Count: benchmarked.filter((b) => b.benchmarkScore.tier.includes('Tier 3')).length,
+    scoringMethod: '7-dimension composite: Clinical Precedence (15%), Cancer Gene Census (10%), Known Drug Evidence (10%), Mutation Frequency (20%), Drug Evidence (15%), Mechanistic Plausibility (15%), Clinical Evidence/CIViC (15%)',
+    tierThresholds: { tier1: '>= 0.60', tier2: '>= 0.35', tier3: '< 0.35' },
     benchmarkedAt: new Date().toISOString(),
   };
-}
-
-function assignTier(score) {
-  if (score >= TIER_THRESHOLDS.tier1) return 'Tier 1 Strong';
-  if (score >= TIER_THRESHOLDS.tier2) return 'Tier 2 Moderate';
-  return 'Tier 3 Exploratory';
-}
-
-function clamp01(x) {
-  if (typeof x !== 'number' || Number.isNaN(x)) return 0;
-  return Math.max(0, Math.min(1, x));
-}
-
-function buildBenchmarkRationale(lead, dims, composite, tier) {
-  const top = Object.entries(dims)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 2)
-    .map(([k, v]) => `${k}=${v.toFixed(2)}`)
-    .join(', ');
-  return `${tier}. Composite score ${composite.toFixed(2)} driven primarily by ${top}.`;
 }

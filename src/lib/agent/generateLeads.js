@@ -1,71 +1,80 @@
 /**
- * Generate Leads Step — Proposes therapeutic lead candidates from predictions.
+ * Step 7: Generate Leads
+ * Proposes mechanism-level therapeutic leads based on real evidence.
+ * Uses mutation frequencies, OpenTargets evidence, CIViC clinical evidence,
+ * and pathway context to prioritize leads.
+ * Constrained to target/pathway level — no molecule generation.
  *
- * Phase 3 Step 3 update: now propagates each prediction's full supporting
- * evidence into the lead so benchmark.js can score on multiple OpenTargets
- * datatype dimensions (clinical_precedence, cancer_gene_census, known_drug)
- * in addition to the previous frequency/druggability metrics.
- *
- * Lead types:
- *   - targeted_therapy: prediction effect is favorable or consider
- *   - alternative_mechanism: prediction effect is reduced or resistant
+ * Propagates all evidence data into leads for downstream benchmark scoring.
  */
 
 export async function generateLeads(diseaseConfig, predictResult) {
   const leads = [];
-  const predictions = predictResult.predictions || [];
 
-  // We need datatypeScoreMap per biomarker; predict.js already carries
-  // supportingEvidence but not the datatype map, so we re-derive it here from
-  // the synthesis-step view if available. Predict carries dtMap forward via
-  // the supportingEvidence object as 'datatypeScoreMap' if present.
-  for (const pred of predictions) {
-    const isFavorable = pred.predictedEffect === 'favorable' || pred.predictedEffect === 'consider';
-    const isAdverse = pred.predictedEffect === 'reduced' || pred.predictedEffect === 'resistant';
+  for (const prediction of predictResult.predictions) {
+    // Extract supporting evidence (Phase 4: single object from predict.js)
+    const evidence = prediction.supportingEvidence || {};
 
-    const baseLead = {
-      biomarker: pred.biomarker,
-      therapy: pred.therapy,
-      derivedFrom: pred.predictedEffect,
-      confidence: pred.confidence,
-      confidenceScore: pred.confidenceScore,
-      supportingMutationFrequency: pred.supportingEvidence?.mutationFrequency || '0.00%',
-      associationScore: pred.supportingEvidence?.diseaseAssociationScore ?? 0,
-      datatypeScoreMap: pred.supportingEvidence?.datatypeScoreMap || {},
-      knownDrugsInClass: pred.supportingEvidence?.druggabilityCount ?? 0,
-      isEssential: pred.supportingEvidence?.isEssential ?? null,
-      interactionDelta: pred.interactionDelta ?? 0,
-      queryBoosted: !!pred.queryBoosted,
+    // Common fields propagated to every lead
+    const commonFields = {
+      confidence: prediction.confidence,
+      confidenceScore: prediction.confidenceScore || 0,
+      supportingMutationFrequency: evidence.mutationFrequency || 'N/A',
+      associationScore: evidence.diseaseAssociationScore || 0,
+      druggabilityCount: evidence.druggabilityCount || 0,
+      // OpenTargets datatype scores for benchmark dimensions
+      datatypeScoreMap: evidence.datatypeScoreMap || {},
+      // CIViC clinical evidence for benchmark dimension 7
+      civicEvidenceCount: evidence.civicEvidenceCount || 0,
+      civicBestLevel: evidence.civicBestLevel || null,
+      civicPredictiveCount: evidence.civicPredictiveCount || 0,
+      // Reactome pathway context for display
+      reactomeTopPathway: evidence.reactomeTopPathway || null,
+      // Provenance
+      derivedFrom: `${diseaseConfig.subtype} prediction analysis`,
     };
 
-    if (isFavorable) {
+    if (prediction.predictedEffect === 'reduced' || prediction.predictedEffect === 'resistant') {
+      // For resistance markers, propose alternative mechanisms
       leads.push({
-        ...baseLead,
-        type: 'targeted_therapy',
-        leadName: `${pred.therapy} for ${pred.biomarker}-driven disease`,
-        rationale: `${pred.biomarker} status supports ${pred.therapy} as a targeted therapy candidate. Predicted effect: ${pred.predictedEffect}.`,
+        leadType: 'alternative_mechanism',
+        primaryTarget: evidence.gene || prediction.condition,
+        mechanismCategory: `Overcome ${prediction.therapy.replace(/_/g, ' ')} resistance`,
+        rationale: `${prediction.condition} predicts ${prediction.predictedEffect} response to ${prediction.therapy.replace(/_/g, ' ')}. ` +
+          `Supported by mutation frequency of ${evidence.mutationFrequency || 'N/A'} and association score of ${evidence.diseaseAssociationScore || 0}. ` +
+          `Alternative targeting strategies should be explored.` +
+          (evidence.reactomeTopPathway ? ` Pathway context: ${evidence.reactomeTopPathway}.` : ''),
+        ...commonFields,
       });
-    } else if (isAdverse) {
+    } else if (prediction.predictedEffect === 'favorable' || prediction.predictedEffect === 'consider') {
+      // For favorable markers, propose targeted leads
       leads.push({
-        ...baseLead,
-        type: 'alternative_mechanism',
-        leadName: `Alternative-mechanism candidate for ${pred.biomarker}-driven disease`,
-        rationale: `${pred.therapy} predicted to be ${pred.predictedEffect}; consider mechanistically distinct alternatives that bypass the ${pred.biomarker} pathway.`,
+        leadType: 'targeted_therapy',
+        primaryTarget: evidence.gene || prediction.condition,
+        mechanismCategory: prediction.therapy.replace(/_/g, ' '),
+        rationale: `${prediction.condition} predicts ${prediction.predictedEffect} response to ${prediction.therapy.replace(/_/g, ' ')}. ` +
+          `Supported by mutation frequency of ${evidence.mutationFrequency || 'N/A'} and association score of ${evidence.diseaseAssociationScore || 0}.` +
+          (evidence.civicBestLevel ? ` CIViC clinical evidence: Level ${evidence.civicBestLevel} (${evidence.civicEvidenceCount} items).` : '') +
+          (evidence.reactomeTopPathway ? ` Pathway: ${evidence.reactomeTopPathway}.` : ''),
+        ...commonFields,
       });
     }
   }
 
-  // Sort: targeted first, then by confidence
+  // Sort leads: targeted therapies first, then by confidence score descending
+  const typeOrder = { targeted_therapy: 0, alternative_mechanism: 1 };
   leads.sort((a, b) => {
-    if (a.type !== b.type) return a.type === 'targeted_therapy' ? -1 : 1;
+    const typeDiff = (typeOrder[a.leadType] || 2) - (typeOrder[b.leadType] || 2);
+    if (typeDiff !== 0) return typeDiff;
     return (b.confidenceScore || 0) - (a.confidenceScore || 0);
   });
 
   return {
     leads,
     totalLeads: leads.length,
-    targetedCount: leads.filter((l) => l.type === 'targeted_therapy').length,
-    alternativeCount: leads.filter((l) => l.type === 'alternative_mechanism').length,
+    targetedTherapies: leads.filter((l) => l.leadType === 'targeted_therapy').length,
+    alternativeMechanisms: leads.filter((l) => l.leadType === 'alternative_mechanism').length,
+    generationMethod: 'Evidence-driven mechanism-level lead proposal from multi-source predictions (cBioPortal + OpenTargets + CIViC + Reactome)',
     generatedAt: new Date().toISOString(),
   };
 }

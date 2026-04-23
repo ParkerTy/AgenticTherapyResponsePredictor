@@ -1,86 +1,119 @@
 /**
- * Synthesize Step — Builds the evidence table for downstream reasoning.
- *
- * Phase 3 Step 3 update: also surfaces OpenTargets datatypeScores per gene
- * as a flat lookup map, so benchmark.js can use clinical_precedence,
- * cancer_gene_census, and known_drug as independent dimensions.
- *
- * Hotfix: retrieve.js returns biomarkerData as an ARRAY of objects, not a
- * map keyed by gene. Accessing biomarkerData[gene] was silently returning
- * undefined and defaulting all mutation numbers to zero. We now build a
- * map from the array before lookups.
+ * Step 3: Synthesize
+ * Assembles an auditable evidence table from real retrieved data.
+ * Links biomarker config knowledge with:
+ * - cBioPortal mutation data
+ * - OpenTargets target-disease evidence
+ * - CIViC clinical evidence
+ * - DGIdb drug-gene interactions
+ * - Reactome pathway context
  */
 
 export async function synthesize(diseaseConfig, retrieveResult) {
   const evidenceTable = [];
 
-  // retrieve.js produces biomarkerData as an array like:
-  //   [{ gene: 'PIK3CA', mutationFrequency: '63.80%', mutatedSamples: 319, totalSamples: 500 }, ...]
-  // Convert to a map for fast lookup.
-  const biomarkerArray = Array.isArray(retrieveResult.biomarkerData)
-    ? retrieveResult.biomarkerData
-    : [];
-  const biomarkerMap = {};
-  for (const b of biomarkerArray) {
-    if (b?.gene) biomarkerMap[b.gene] = b;
+  // Build lookup maps from the retrieve result arrays
+  const civicMap = {};
+  for (const item of (retrieveResult.civicEvidence || [])) {
+    civicMap[item.gene] = item;
   }
 
-  // targetEvidence is an array of { gene, targetId, diseaseAssociation, druggability, ... }
-  const targetEvidence = retrieveResult.targetEvidence || [];
-  const targetByGene = {};
-  for (const t of targetEvidence) {
-    if (t?.gene) targetByGene[t.gene] = t;
+  const dgidbMap = {};
+  for (const item of (retrieveResult.dgidbEvidence || [])) {
+    dgidbMap[item.gene] = item;
   }
 
-  for (const [gene, props] of Object.entries(diseaseConfig.biomarkers || {})) {
-    const bio = biomarkerMap[gene] || {};
-    const target = targetByGene[gene] || {};
-    const dtScores = target?.diseaseAssociation?.datatypeScores || [];
-    const datatypeScoreMap = buildDatatypeScoreMap(dtScores);
+  const reactomeMap = {};
+  for (const item of (retrieveResult.reactomeEvidence || [])) {
+    reactomeMap[item.gene] = item;
+  }
+
+  for (const [gene, info] of Object.entries(diseaseConfig.biomarkers)) {
+    const biomarkerData = retrieveResult.biomarkerData.find((b) => b.gene === gene) || {};
+    const targetData = retrieveResult.targetEvidence.find((t) => t.gene === gene) || {};
+    const civicData = civicMap[gene] || {};
+    const dgidbData = dgidbMap[gene] || {};
+    const reactomeData = reactomeMap[gene] || {};
 
     evidenceTable.push({
       gene,
-      role: props.role,
-      effect:
-        props.mutationEffect ||
-        props.expressionEffect ||
-        props.highEffect ||
-        props.intactEffect ||
-        'unspecified',
-      measurementType: props.measurementType || 'mutation',
-      mutationFrequency: bio.mutationFrequency || bio.frequency || '0.00%',
-      mutatedSamples: bio.mutatedSamples ?? 0,
-      totalSamples: bio.totalSamples ?? 0,
-      diseaseAssociationScore: target?.diseaseAssociation?.overallScore ?? null,
-      associationFound: target?.diseaseAssociation?.found ?? false,
-      datatypeScores: dtScores,
-      datatypeScoreMap,
-      druggabilityCount: target?.druggabilityCount ?? 0,
-      druggability: target?.druggability ?? [],
-      isEssential: target?.isEssential ?? null,
-      targetId: target?.targetId ?? null,
-      targetName: target?.targetName ?? null,
+      role: info.role,
+      effect: info.mutationEffect || info.expressionEffect || info.highEffect || 'Unknown',
+
+      // cBioPortal evidence
+      mutationFrequency: biomarkerData.mutationFrequency || '0%',
+      mutatedSamples: biomarkerData.mutatedSamples || 0,
+      totalSamples: biomarkerData.totalSamples || 0,
+
+      // OpenTargets evidence
+      targetId: targetData.targetId || null,
+      diseaseAssociationScore: targetData.diseaseAssociation?.overallScore || 0,
+      associationFound: targetData.diseaseAssociation?.found || false,
+      datatypeScores: targetData.diseaseAssociation?.datatypeScores || [],
+
+      // Druggability (OpenTargets tractability)
+      druggabilityCount: targetData.druggabilityCount || 0,
+      druggability: targetData.druggability || [],
+      isEssential: targetData.isEssential || false,
+
+      // CIViC clinical evidence
+      civicEvidenceCount: civicData.totalEvidenceItems || 0,
+      civicBestLevel: civicData.bestEvidenceLevel || null,
+      civicEvidenceByLevel: civicData.evidenceByLevel || {},
+      civicEvidenceByType: civicData.evidenceByType || {},
+      civicPredictiveCount: civicData.predictiveCount || 0,
+      civicTherapies: civicData.therapies || [],
+      civicItems: civicData.items || [],
+      civicFound: civicData.found || false,
+
+      // DGIdb drug-gene interactions
+      dgidbDrugCount: dgidbData.totalInteractions || 0,
+      dgidbApprovedCount: dgidbData.approvedDrugCount || 0,
+      dgidbDrugs: dgidbData.drugs || [],
+      dgidbDrugNames: dgidbData.allDrugNames || [],
+      dgidbCategories: dgidbData.geneCategories || [],
+      dgidbFound: dgidbData.found || false,
+
+      // Reactome pathway context
+      reactomeTopPathway: reactomeData.topPathway || null,
+      reactomePathwayCount: reactomeData.totalPathways || 0,
+      reactomePathways: reactomeData.pathways || [],
+      reactomeFound: reactomeData.found || false,
+
+      // Provenance
+      dataSources: {
+        mutations: 'cBioPortal',
+        targetEvidence: 'OpenTargets',
+        clinicalEvidence: 'CIViC',
+        drugInteractions: 'DGIdb',
+        pathways: 'Reactome',
+        config: diseaseConfig.subtype,
+      },
     });
   }
 
+  const genesWithMutations = evidenceTable.filter((e) => e.mutatedSamples > 0).length;
+  const genesWithAssociation = evidenceTable.filter((e) => e.associationFound).length;
+  const totalDruggable = evidenceTable.filter((e) => e.druggabilityCount > 0).length;
+  const genesWithCivicEvidence = evidenceTable.filter((e) => e.civicFound).length;
+  const genesWithDgidbDrugs = evidenceTable.filter((e) => e.dgidbFound).length;
+  const genesWithPathways = evidenceTable.filter((e) => e.reactomeFound).length;
+
   return {
     evidenceTable,
+    totalItems: evidenceTable.length,
     summary: {
       genesAnalyzed: evidenceTable.length,
-      genesWithMutations: evidenceTable.filter((e) => parseFloat(e.mutationFrequency) > 0).length,
-      genesWithAssociation: evidenceTable.filter((e) => e.associationFound).length,
-      totalDruggable: evidenceTable.filter((e) => e.druggabilityCount > 0).length,
-      cohortSize: retrieveResult.cohort?.totalSamples || retrieveResult.cohort?.sampleCount || 0,
-      studyName: retrieveResult.cohort?.name || retrieveResult.cohort?.studyName || retrieveResult.cohort?.studyId || 'unknown',
+      genesWithMutations,
+      genesWithAssociation,
+      totalDruggable,
+      genesWithCivicEvidence,
+      genesWithDgidbDrugs,
+      genesWithPathways,
+      cohortSize: retrieveResult.cohort.sampleCount,
+      studyName: retrieveResult.cohort.studyName,
     },
+    synthesisMethod: 'Multi-source evidence integration (cBioPortal + OpenTargets + CIViC + DGIdb + Reactome + disease config)',
     synthesizedAt: new Date().toISOString(),
   };
-}
-
-function buildDatatypeScoreMap(datatypeScores) {
-  const map = {};
-  for (const d of datatypeScores || []) {
-    if (d?.id) map[d.id] = d.score ?? 0;
-  }
-  return map;
 }
