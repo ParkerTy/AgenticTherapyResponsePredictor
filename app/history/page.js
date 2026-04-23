@@ -20,127 +20,137 @@ export default function History() {
   const [error, setError] = useState(null);
   const [filterDisease, setFilterDisease] = useState('');
 
-  useEffect(() => {
-    loadRuns(filterDisease);
-  }, [filterDisease]);
+  useEffect(() => { loadRuns(filterDisease); }, [filterDisease]);
 
   const loadRuns = async (disease) => {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
-      const url = disease
-        ? `/api/history?diseaseContext=${encodeURIComponent(disease)}&limit=100`
-        : `/api/history?limit=100`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || 'Failed to load history');
-        setRuns([]);
-      } else {
-        setRuns(data.runs || []);
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+      const url = disease ? `/api/history?diseaseContext=${encodeURIComponent(disease)}&limit=100` : `/api/history?limit=100`;
+      const res = await fetch(url); const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Failed to load history'); setRuns([]); }
+      else { setRuns(data.runs || []); }
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
   };
 
   return (
-    <main style={styles.main}>
-      <nav style={styles.nav}>
-        <strong style={{ color: '#fff', fontSize: '16px' }}>Agentic Therapy Response Predictor</strong>
-        <div style={{ display: 'flex', gap: '16px', fontSize: '14px' }}>
-          <Link href="/" style={{ color: '#aaa', textDecoration: 'none' }}>Home</Link>
-          <Link href="/compare" style={{ color: '#aaa', textDecoration: 'none' }}>Compare</Link>
-          <Link href="/interpret" style={{ color: '#aaa', textDecoration: 'none' }}>Interpret</Link>
-          <Link href="/methods" style={{ color: '#aaa', textDecoration: 'none' }}>Methods</Link>
-          <Link href="/history" style={{ color: '#4da6ff', textDecoration: 'none' }}>History</Link>
+    <main style={{ fontFamily: 'var(--font-body)', backgroundColor: 'var(--bg-deep)', color: 'var(--text-primary)', minHeight: '100vh' }}>
+
+      <nav className="site-nav">
+        <Link href="/" className="nav-logo"><div className="nav-logo-dot" /><span className="nav-logo-text">ATRP</span></Link>
+        <div className="nav-links">
+          <Link href="/" className="nav-link">Home</Link>
+          <Link href="/about" className="nav-link">About</Link>
+          <Link href="/compare" className="nav-link">Compare</Link>
+          <Link href="/interpret" className="nav-link">Interpret</Link>
+          <Link href="/methods" className="nav-link">Methods</Link>
+          <Link href="/history" className="nav-link nav-active">History</Link>
         </div>
       </nav>
 
-      <header style={styles.header}>
-        <h1 style={styles.h1}>Run History</h1>
-        <p style={styles.subtitle}>
+      <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '32px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+          <div style={{ width: '32px', height: '2px', background: 'var(--accent-cyan)', borderRadius: '1px' }} />
+          <span className="label-upper" style={{ color: 'var(--accent-cyan)' }}>Provenance & Audit</span>
+        </div>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, margin: '0 0 6px', color: 'var(--text-primary)' }}>Run History</h1>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px', maxWidth: '700px' }}>
           Every agent execution is logged for reproducibility and audit. Click any run to view its full reasoning trace or refine it with a follow-up query.
         </p>
-      </header>
 
-      <section style={styles.panel}>
-        <label style={styles.label}>Filter by disease context</label>
-        <select
-          style={styles.select}
-          value={filterDisease}
-          onChange={(e) => setFilterDisease(e.target.value)}
-        >
-          <option value="">All disease contexts</option>
-          <option value="hr_pos_her2_neg">HR+/HER2- Breast Cancer</option>
-          <option value="tnbc">Triple-Negative Breast Cancer</option>
-          <option value="crc">Colorectal Cancer</option>
-          <option value="luad">Lung Adenocarcinoma</option>
-        </select>
-      </section>
+        {/* Filter */}
+        <div className="card" style={{ marginBottom: '20px' }}>
+          <label className="label-upper" style={{ display: 'block', marginBottom: '6px' }}>Filter by disease context</label>
+          <select value={filterDisease} onChange={(e) => setFilterDisease(e.target.value)}
+            style={{ width: '100%', maxWidth: '400px', padding: '10px 12px', fontSize: '14px', fontFamily: 'var(--font-body)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border-bright)', borderRadius: '8px', outline: 'none' }}>
+            <option value="">All disease contexts</option>
+            <option value="hr_pos_her2_neg">HR+/HER2- Breast Cancer</option>
+            <option value="tnbc">Triple-Negative Breast Cancer</option>
+            <option value="crc">Colorectal Cancer</option>
+            <option value="luad">Lung Adenocarcinoma</option>
+          </select>
+        </div>
 
-      {loading && <section style={styles.panel}><p style={styles.muted}>Loading...</p></section>}
-
-      {error && (
-        <section style={styles.errorPanel}>
-          <h3 style={styles.errorTitle}>Error loading history</h3>
-          <p style={styles.errorMessage}>{error}</p>
-        </section>
-      )}
-
-      {!loading && !error && runs.length === 0 && (
-        <section style={styles.panel}>
-          <p style={styles.muted}>No runs found for the selected filter.</p>
-        </section>
-      )}
-
-      {!loading && runs.length > 0 && (
-        <section style={styles.panel}>
-          <h2 style={styles.h2}>{runs.length} run(s)</h2>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th style={styles.th}>When</th>
-                  <th style={styles.th}>Disease</th>
-                  <th style={styles.th}>Query</th>
-                  <th style={styles.th}>Status</th>
-                  <th style={styles.th}>Refined?</th>
-                  <th style={styles.th}>View</th>
-                </tr>
-              </thead>
-              <tbody>
-                {runs.map((r) => (
-                  <tr key={r.id}>
-                    <td style={styles.td}>{formatDate(r.created_at)}</td>
-                    <td style={styles.td}>{DISEASE_LABELS[r.disease_context] || r.disease_context}</td>
-                    <td style={{ ...styles.td, maxWidth: 360, overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.query}>
-                      {r.query}
-                    </td>
-                    <td style={styles.td}>
-                      <span style={{ ...styles.badge, background: statusBg(r.status) }}>{r.status}</span>
-                    </td>
-                    <td style={styles.td}>
-                      {r.parent_run_id
-                        ? <span style={styles.muted}>child of <code style={styles.code}>{r.parent_run_id.slice(-8)}</code></span>
-                        : <span style={styles.muted}>top-level</span>}
-                    </td>
-                    <td style={styles.td}>
-                      <a href={`/run/${r.run_id}`} style={styles.viewLink}>Open</a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {/* Loading */}
+        {loading && (
+          <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '18px', height: '18px', border: '2px solid var(--border-bright)', borderTopColor: 'var(--accent-cyan)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+            <span style={{ color: 'var(--text-muted)', fontSize: '13px', fontFamily: 'var(--font-display)' }}>Loading history from Supabase...</span>
           </div>
-        </section>
-      )}
+        )}
 
-      <footer style={{ marginTop: '40px', paddingTop: '16px', borderTop: '1px solid #333', textAlign: 'center', fontSize: '12px', color: '#555' }}>
-        <p>Ty Parker | INFO 603/404 Biological Data Management | Prof. Jake Y. Chen</p>
+        {/* Error */}
+        {error && (
+          <div className="card" style={{ borderColor: 'rgba(244,63,94,0.3)', backgroundColor: 'rgba(244,63,94,0.04)' }}>
+            <h3 style={{ margin: '0 0 6px', fontSize: '14px', color: 'var(--accent-rose)', fontFamily: 'var(--font-display)' }}>Error loading history</h3>
+            <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>{error}</p>
+          </div>
+        )}
+
+        {/* Empty */}
+        {!loading && !error && runs.length === 0 && (
+          <div className="card">
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '13px' }}>No runs found for the selected filter.</p>
+          </div>
+        )}
+
+        {/* Results */}
+        {!loading && runs.length > 0 && (
+          <div className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: 600, letterSpacing: '0.5px', textTransform: 'uppercase', color: 'var(--accent-cyan)' }}>
+                {runs.length} Run{runs.length !== 1 ? 's' : ''}
+              </h2>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>When</th>
+                    <th>Disease</th>
+                    <th>Query</th>
+                    <th>Status</th>
+                    <th>Refined?</th>
+                    <th>View</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runs.map((r) => (
+                    <tr key={r.id}>
+                      <td style={{ fontFamily: 'var(--font-display)', fontSize: '12px', whiteSpace: 'nowrap' }}>{formatDate(r.created_at)}</td>
+                      <td>{DISEASE_LABELS[r.disease_context] || r.disease_context}</td>
+                      <td style={{ maxWidth: 360, overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.query}>{r.query}</td>
+                      <td>
+                        <span className="pill" style={{
+                          backgroundColor: r.status === 'completed' ? 'rgba(34,197,94,0.12)' : r.status === 'error' ? 'rgba(244,63,94,0.12)' : 'rgba(100,116,139,0.1)',
+                          color: r.status === 'completed' ? 'var(--accent-green)' : r.status === 'error' ? 'var(--accent-rose)' : 'var(--text-muted)',
+                          border: `1px solid ${r.status === 'completed' ? 'rgba(34,197,94,0.3)' : r.status === 'error' ? 'rgba(244,63,94,0.3)' : 'var(--border)'}`,
+                          fontSize: '11px', padding: '2px 10px',
+                        }}>
+                          {r.status}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: '12px' }}>
+                        {r.parent_run_id
+                          ? <span style={{ color: 'var(--text-muted)' }}>child of <code style={{ background: 'var(--bg-deep)', padding: '1px 5px', borderRadius: '4px', fontFamily: 'var(--font-display)', fontSize: '11px', color: 'var(--accent-cyan)' }}>{r.parent_run_id.slice(-8)}</code></span>
+                          : <span style={{ color: 'var(--text-muted)' }}>top-level</span>}
+                      </td>
+                      <td>
+                        <a href={`/run/${r.run_id}`} style={{ color: 'var(--accent-cyan)', textDecoration: 'none', fontFamily: 'var(--font-display)', fontSize: '12px', fontWeight: 500 }}>Open →</a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <footer className="site-footer">
+        <p style={{ fontFamily: 'var(--font-display)' }}>Ty Parker · INFO 603/404 Biological Data Management · Prof. Jake Y. Chen</p>
         <p>Powered by cBioPortal · OpenTargets · CIViC · DGIdb · Reactome</p>
+        <p><a href="https://github.com/ParkerTy/AgenticTherapyResponsePredictor" target="_blank" rel="noopener noreferrer">GitHub Repository</a></p>
       </footer>
     </main>
   );
@@ -148,34 +158,5 @@ export default function History() {
 
 function formatDate(iso) {
   if (!iso) return '';
-  const d = new Date(iso);
-  return d.toLocaleString();
+  return new Date(iso).toLocaleString();
 }
-
-function statusBg(status) {
-  if (status === 'completed') return '#2d8a2d';
-  if (status === 'error') return '#a33';
-  return '#555';
-}
-
-const styles = {
-  main: { background: '#111', color: '#eee', minHeight: '100vh', padding: '0 0 60px 0', fontFamily: 'system-ui, -apple-system, sans-serif' },
-  nav: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 32px', background: '#1a1a1a', borderBottom: '1px solid #333' },
-  header: { padding: '32px' },
-  h1: { margin: 0, fontSize: 28 },
-  h2: { margin: '0 0 12px 0', fontSize: 20 },
-  subtitle: { color: '#888', marginTop: 8 },
-  panel: { background: '#1a1a1a', border: '1px solid #333', borderRadius: 8, padding: 24, margin: '16px 32px' },
-  errorPanel: { background: '#2a1a1a', border: '1px solid #663333', borderRadius: 8, padding: 24, margin: '16px 32px' },
-  errorTitle: { margin: '0 0 8px 0', color: '#ff6666' },
-  errorMessage: { margin: 0, color: '#eee' },
-  label: { display: 'block', fontSize: 14, color: '#aaa', marginBottom: 6 },
-  select: { width: '100%', padding: 8, background: '#111', color: '#eee', border: '1px solid #333', borderRadius: 4, maxWidth: 400 },
-  table: { width: '100%', borderCollapse: 'collapse', fontSize: 14 },
-  th: { textAlign: 'left', padding: '8px 12px', borderBottom: '1px solid #333', color: '#aaa', fontWeight: 600 },
-  td: { padding: '8px 12px', borderBottom: '1px solid #2a2a2a' },
-  badge: { padding: '2px 8px', borderRadius: 4, fontSize: 12, color: 'white' },
-  muted: { color: '#888', fontSize: 13 },
-  code: { background: '#0a0a0a', padding: '1px 4px', borderRadius: 3, fontFamily: 'monospace', fontSize: 12, color: '#9cf' },
-  viewLink: { color: '#4da6ff', textDecoration: 'none' },
-};
