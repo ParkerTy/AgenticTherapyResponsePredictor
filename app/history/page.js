@@ -9,7 +9,6 @@ const DISEASE_LABELS = {
   'HR+/HER2-': 'HR+/HER2- Breast Cancer',
   'TNBC': 'Triple-Negative Breast Cancer',
   'CRC': 'Colorectal Cancer',
-  'Breast Cancer': 'Breast Cancer (legacy)',
 };
 
 export default function History() {
