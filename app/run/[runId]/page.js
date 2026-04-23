@@ -16,15 +16,17 @@ export default function RunDetail({ params }) {
   const [refineError, setRefineError] = useState(null);
 
   useEffect(() => {
-    loadRun();
+    const controller = new AbortController();
+    loadRun(controller.signal);
+    return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId]);
 
-  const loadRun = async () => {
+  const loadRun = async (signal) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/run/${runId}`);
+      const res = await fetch(`/api/run/${runId}`, { signal });
       const body = await res.json();
       if (!res.ok) {
         setError(body.error || 'Failed to load run');
@@ -32,9 +34,10 @@ export default function RunDetail({ params }) {
         setData(body);
       }
     } catch (err) {
+      if (err.name === 'AbortError') return;
       setError(err.message);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   };
 

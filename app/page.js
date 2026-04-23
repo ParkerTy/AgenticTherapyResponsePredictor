@@ -62,8 +62,12 @@ export default function Home() {
         body: JSON.stringify({ diseaseContext, query }),
       });
       const data = await res.json();
-      if (!res.ok) setError(data.error || 'Something went wrong');
-      else setResult(data);
+      if (!res.ok) {
+        setError(data.message || data.error || 'Something went wrong');
+        setResult(null);
+      } else {
+        setResult(data);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
