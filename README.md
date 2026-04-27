@@ -1,179 +1,184 @@
-# Agentic Therapy Response Predictor
+# Agentic Therapy Response Predictor (ATRP)
 
-A reusable, disease-agnostic agentic AI system for oncology therapy response prediction and therapeutic lead benchmarking. Built for INFO 603/404 Biological Data Management (Prof. Jake Y. Chen, Spring 2026). Inspired by BioAgents (2025).
+A reusable agentic AI scientist for therapy response prediction and generative lead benchmarking across oncology disease contexts.
 
-**Live app:** https://agentic-therapy-response-predictor.vercel.app
-**Repository:** https://github.com/ParkerTy/AgenticTherapyResponsePredictor
+**Live:** [agentic-therapy-response-predictor.vercel.app](https://agentic-therapy-response-predictor.vercel.app)  
+**Course:** INFO 603/404 Biological Data Management — Prof. Jake Y. Chen  
+**Author:** Ty Parker — University of Alabama at Birmingham — Spring 2026
 
 ---
 
 ## Scientific Question
 
-Can a general-purpose agentic AI workflow integrate open-source clinical, genomic, pathway, and drug-target knowledge to (1) predict therapy response patterns and (2) benchmark newly proposed therapeutic leads, while maintaining transparency, reproducibility, and auditability across disease contexts?
+> Can a general-purpose agentic AI workflow integrate open-source clinical, genomic, pathway, and drug–target knowledge to (1) predict therapy response patterns and (2) benchmark newly proposed therapeutic leads, while maintaining transparency, reproducibility, and auditability across disease contexts?
 
----
+## What This System Does
 
-## The Agent Loop
+ATRP executes a **9-step deterministic agentic reasoning pipeline** that integrates 5 open biomedical databases to:
 
-Every run executes this deterministic, fully-logged 9-step pipeline:
+1. **Parse** natural language queries into structured therapy classes, biomarkers, intents, and clinical settings
+2. **Plan** a reasoning strategy based on disease configuration
+3. **Retrieve** real cohort data, mutations, target–disease associations, clinical evidence, drug interactions, and pathway context
+4. **Synthesize** a multi-source evidence table per biomarker gene
+5. **Apply interaction rules** modeling biological co-dependencies between biomarkers
+6. **Predict** therapy response with transparent confidence scoring (4 components)
+7. **Generate therapeutic leads** based on evidence patterns
+8. **Benchmark** leads with a 7-dimension composite scoring system
+9. **Report** structured results with full provenance
 
-1. **parseQuery** — deterministic keyword parser extracts therapy classes, biomarkers, clinical settings, and intents from the user's natural-language query
-2. **plan** — query-aware execution plan listing the analysis focus and tools required
-3. **retrieve** — live cBioPortal and OpenTargets API calls for cohort, mutations, and target-disease evidence
-4. **synthesize** — builds the evidence table joining mutation frequencies, association scores, and druggability
-5. **interactions** — evaluates gene×gene biomarker interaction rules from config
-6. **predict** — applies disease-specific heuristics; confidence modulated by query intent and interaction rules
-7. **generateLeads** — proposes targeted-therapy and alternative-mechanism lead candidates
-8. **benchmark** — 6-dimension composite scoring with OpenTargets datatype breakdown
-9. **report** — structured report with full provenance and audit trail
+All reasoning is deterministic — identical inputs produce identical outputs. No LLM is used in the scientific pipeline. An optional Groq LLM integration provides plain-English interpretation of results as a Tier-2 layer.
 
-Every step is logged to Supabase and surfaced in the UI's reasoning trace.
+## Integrated Data Sources
 
----
+| Source | Type | Provides |
+|--------|------|----------|
+| [cBioPortal](https://www.cbioportal.org) | REST API | TCGA cohort data, somatic mutation profiles, mutation frequencies |
+| [OpenTargets](https://platform.opentargets.org) | GraphQL API | Target–disease association scores, druggability, tractability |
+| [CIViC](https://civicdb.org) | GraphQL API | Expert-curated clinical evidence levels (A–E), evidence types |
+| [DGIdb](https://dgidb.org) | GraphQL API | Drug–gene interactions, FDA approval status, interaction types |
+| [Reactome](https://reactome.org) | REST API | Biological pathway context per gene |
 
-## Disease Contexts (Configurable)
+All APIs are open and require no authentication keys.
 
-Disease contexts are JSON config files in `src/lib/configs/`. Adding a new context requires only a new JSON file — zero code changes.
+## Disease Contexts
 
-- **HR+/HER2- Breast Cancer** (`hr_pos_her2_neg.json`) — ESR1, PIK3CA, RB1
-- **Triple-Negative Breast Cancer** (`tnbc.json`) — BRCA1, BRCA2, PD-L1
-- **Colorectal Cancer** (`crc.json`) — KRAS, NRAS, MSI
+The system supports 4 oncology disease contexts, each defined by a JSON configuration file:
 
----
+| Context | Config File | Key Biomarkers |
+|---------|------------|----------------|
+| HR+/HER2− Breast Cancer | `hr_pos_her2_neg.json` | PIK3CA, ESR1, RB1 |
+| Triple-Negative Breast Cancer | `tnbc.json` | BRCA1, BRCA2, PD-L1 |
+| Colorectal Cancer | `crc.json` | KRAS, NRAS, MSI |
+| Lung Adenocarcinoma | `luad.json` | EGFR, ALK, KRAS |
+
+Adding a new disease context requires only creating a JSON config file — zero code changes. See `docs/adding-disease-context.md` for a complete guide.
+
+## Pages
+
+| Page | Route | Purpose |
+|------|-------|---------|
+| Home | `/` | Run the agentic pipeline with disease context selection |
+| About | `/about` | Scientific question, citations, LOI requirements |
+| Compare | `/compare` | Side-by-side analysis across multiple disease contexts |
+| Interpret | `/interpret` | LLM-powered interpretation of completed runs |
+| Methods | `/methods` | Data sources, scoring formulas, architecture, FAIR compliance |
+| History | `/history` | Supabase-backed audit log of all agent runs |
 
 ## Tech Stack
 
-- **Frontend/Fullstack:** Next.js (JavaScript), deployed on Vercel
-- **Backend:** Next.js API routes
-- **Database:** Supabase (PostgreSQL)
-- **External APIs:** cBioPortal REST API, OpenTargets GraphQL API (both open, no keys required)
-- **Agent logic:** Modular JavaScript; no LLM (deterministic by design for reproducibility)
+- **Frontend:** Next.js 16 (JavaScript, App Router)
+- **Database:** Supabase (PostgreSQL — 6 tables)
+- **LLM:** Groq (llama-3.3-70b-versatile) — interpretation only, not in scientific pipeline
+- **Deployment:** Vercel
+- **Styling:** Custom CSS design system (JetBrains Mono + Source Sans 3)
 
----
+## Database Schema
 
-## Phase Status
+6 tables in Supabase for full provenance tracking:
 
-| Phase | Scope | Status |
-|---|---|---|
-| Phase 1 | Project setup, agent skeleton, Supabase schema, disease configs | ✅ Complete |
-| Phase 2 | Live cBioPortal + OpenTargets integration, evidence tables, logging | ✅ Complete |
-| Phase 3 | Query-aware agent, interaction modeling, expanded benchmarking, run history + refinement | ✅ Complete |
-| Phase 4 | UI polish, additional disease context, reproducibility demonstration, final report | ⏳ Scheduled |
+- `disease_contexts` — disease configuration metadata
+- `cohorts` — links cohorts to disease contexts and cBioPortal studies
+- `agent_runs` — logs every execution with status, query, timestamps
+- `tool_calls` — records input/output JSON for each pipeline step
+- `evidence_items` — stores synthesized evidence per gene
+- `reports` — stores final reports with full provenance
 
----
+## Scoring Systems
 
-## Phase 3 Feature Highlights
+### Therapy Response Confidence (4 components)
 
-**Query-Aware Agent (Step 1)** — User queries are parsed into structured intent (therapy classes, biomarkers, clinical settings, intents) via a deterministic controlled vocabulary. Parsed query drives plan focus areas and applies a +0.10 soft-nudge confidence boost to predictions matching the user's therapy-class intent. Queries with no recognizable terms are rejected with example-query guidance.
+```
+effectiveScore = clamp(0, 1, baseScore + queryBoost + interactionDelta + clinicalEvidenceBoost)
+```
 
-**Biomarker Interaction Modeling (Step 2)** — `interactionRules` in each disease JSON encodes gene×gene relationships (e.g., PIK3CA + ESR1 co-mutation → endocrine resistance + PI3K indication; RB1 loss → CDK4/6 inhibitor ineligibility; KRAS + NRAS co-mutation → strengthened anti-EGFR resistance; BRCA1 + BRCA2 co-mutation → heightened PARP/platinum sensitivity). A new `interactions` agent step evaluates rules and emits confidence modifiers that feed into predict.
+- **Base Score:** 1.0/0.6/0.3 based on mutation frequency and association score thresholds
+- **Query Boost:** +0.10 if query mentions matching therapy class
+- **Interaction Delta:** Config-driven biomarker interaction modifiers (±)
+- **Clinical Evidence Boost:** +0.10 for CIViC Level A or B evidence
 
-**Expanded Benchmarking (Step 3)** — 6-dimension composite scoring: clinical_precedence (0.20), cancer_gene_census (0.15), known_drug (0.15), mutation frequency (0.20), druggability (0.15), mechanistic plausibility (0.15). Weights sum to 1.0; tier bands unchanged for backward comparability.
+### Lead Benchmarking (7 dimensions, weights sum to 1.0)
 
-**Run History + Refinement Threading (Step 4)** — Full history page at `/history` with per-disease filtering; individual run detail page at `/run/[runId]` showing all prior steps. "Refine This Run" button submits a follow-up query that links to the parent via `parent_run_id`, producing parent → child → grandchild conversation threading.
+| Dimension | Weight | Source |
+|-----------|--------|--------|
+| Clinical Precedence | 0.15 | OpenTargets (known_drug) |
+| Cancer Gene Census | 0.10 | OpenTargets (genetic_association) |
+| Known Drug Evidence | 0.10 | OpenTargets (somatic_mutation) |
+| Mutation Frequency | 0.20 | cBioPortal |
+| Drug Evidence | 0.15 | DGIdb |
+| Mechanistic Plausibility | 0.15 | Lead type |
+| Clinical Evidence | 0.15 | CIViC |
 
----
+Tiers: ≥0.60 = Tier 1 (Strong), ≥0.35 = Tier 2 (Moderate), <0.35 = Tier 3 (Exploratory)
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- Supabase account (free tier works)
+- Groq API key (free — for Interpret page only)
+
+### Setup
+
+```bash
+git clone https://github.com/ParkerTy/AgenticTherapyResponsePredictor.git
+cd AgenticTherapyResponsePredictor
+npm install
+cp .env.example .env.local
+# Fill in your Supabase and Groq credentials in .env.local
+npm run dev
+```
+
+### Environment Variables
+
+See `.env.example` for all required variables.
 
 ## FAIR Compliance
 
-### Findable
-- Organized repo structure (`/src`, `/docs/progress-reports`, `/src/lib/configs`)
-- Every run is indexed by deterministic `run_id` in Supabase
-- Consistent naming conventions for files, configs, tables, and agent steps
-- Public repo on GitHub with descriptive commit history
+| Principle | Implementation |
+|-----------|---------------|
+| **Findable** | Unique run IDs, organized repo, Supabase-indexed runs, public GitHub, searchable history |
+| **Accessible** | All 5 APIs are open, public repo, live Vercel deployment, comprehensive Methods page |
+| **Interoperable** | JSON format, REST + GraphQL APIs, EFO ontology IDs, modular config-driven architecture |
+| **Reusable** | Config-driven (add diseases via JSON), documented workflows, full provenance, transparent scoring |
 
-### Accessible
-- Public GitHub repository
-- Live web app on Vercel (no auth required for demo)
-- API endpoints return JSON
-- No paywalled or proprietary data dependencies
+## Key Citations
 
-### Interoperable
-- Data exchanged in standard formats: JSON, CSV (exportable via Supabase)
-- REST + GraphQL clients for external APIs
-- Modular JS architecture; each agent step is a pure async function
-- Disease contexts are plain JSON so they can be consumed by any language
-
-### Reusable
-- Fully config-driven: adding a new disease context requires no code changes
-- Every agent run is fully logged with inputs, outputs, and timestamps
-- Deterministic reasoning (no LLM): same inputs produce same outputs
-- Transparent, documented heuristics with auditable weights and thresholds
-- All code and configs are version-controlled with commit-level provenance
-
----
-
-## Agent Design Principles
-
-- **Deterministic by default** — no LLM in the reasoning pipeline; outputs are reproducible
-- **Config-driven** — disease contexts, biomarkers, heuristics, and interaction rules live in JSON
-- **Transparent** — all scoring formulas and weights are documented in-code
-- **Auditable** — every step, input, and output is logged to Supabase
-- **Composable** — each agent step is a pure async function; swappable and independently testable
-- **No black-box ML** — every prediction is explained by biomarker evidence and heuristic rules
-
----
-
-## Environment Variables
-
-See `.env.example` for required variables. The following are needed for full functionality:
-
-- `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anonymous API key
-- `CBIOPORTAL_API` — cBioPortal REST API endpoint (default: https://www.cbioportal.org/api)
-- `OPENTARGETS_API` — OpenTargets API endpoint (default: https://api.platform.opentargets.org/api/v4)
-- `LLM_API_KEY` — reserved for optional Phase 4 LLM query-interpreter demo
-
----
+- Mehandru, N. et al. (2025). "BioAgents: Bridging the gap in bioinformatics analysis with multi-agent systems." *Scientific Reports*, 15, 39036.
+- Schimmelpfennig, J. et al. (2025). "CIViC MCP: A Model Context Protocol Server for Clinical Interpretation of Variants in Cancer." *bioRxiv*.
+- Ragueneau, E. et al. (2025). "The Reactome Knowledgebase 2026." *Nucleic Acids Research*.
+- Zhou, Y. et al. (2025). "Agentic AI in Bioinformatics: A Comprehensive Survey."
+- Drug Target Review (2024). "Agentic AI: Teaching Machines to Think Like Scientists."
 
 ## Project Structure
-/app
-/api
-/agent/route.js           POST /api/agent
-/history/route.js         GET /api/history
-/run/[runId]/route.js     GET /api/run/[runId]
-/history/page.js            /history UI
-/run/[runId]/page.js        /run/[runId] UI
-page.js                     / home UI
-layout.js, globals.css      Next.js scaffold
-/src
-/components                 Reserved for shared UI components
-/lib
-/agent                    The 9-step reasoning pipeline
-index.js                Orchestrator
-queryParser.js          Deterministic query parser (Phase 3)
-plan.js, retrieve.js, synthesize.js
-interactions.js         Biomarker interaction evaluator (Phase 3)
-predict.js, generateLeads.js, benchmark.js, report.js
-logger.js               Supabase write layer
-/api                      External API clients
-cbioportal.js
-opentargets.js
-/configs                  Disease context JSON (drives agent behavior)
-hr_pos_her2_neg.json
-tnbc.json
-crc.json
-supabase.js               Supabase client
-/docs
-/progress-reports           Phase progress reports (md)
-README.md, .env.example, package.json, ...
----
 
-## Running Locally
-
-```powershell
-npm install
-cp .env.example .env.local  # then edit .env.local with your Supabase credentials
-npm run dev
-# open http://localhost:3000
+```
+├── app/
+│   ├── page.js              # Home — primary query interface
+│   ├── layout.js             # Root layout with globals.css
+│   ├── globals.css           # Shared design system
+│   ├── about/page.js         # Scientific question & citations
+│   ├── compare/page.js       # Cross-disease comparison
+│   ├── interpret/page.js     # LLM interpretation interface
+│   ├── methods/page.js       # Technical documentation
+│   ├── history/page.js       # Run audit log
+│   └── api/
+│       ├── agent/route.js    # Main agent pipeline endpoint
+│       ├── interpret/route.js # Groq LLM interpretation endpoint
+│       ├── history/route.js  # Run history endpoint
+│       └── run/[runId]/route.js # Run detail endpoint
+├── src/lib/
+│   ├── agent/                # 9-step pipeline modules
+│   ├── configs/              # Disease context JSON files
+│   ├── apis/                 # External API clients
+│   └── supabase.js           # Database client
+├── docs/
+│   ├── progress-reports/     # Phase 1–3 progress reports
+│   └── adding-disease-context.md  # Guide to adding new diseases
+├── .env.example
+└── README.md
 ```
 
----
+## License
 
-## Credits
-
-- BioAgents (2025) — design inspiration for the agentic loop
-- cBioPortal — open cancer genomics data
-- OpenTargets — open target-disease evidence
-- Supabase — open-source Postgres backend
-- Next.js + Vercel — hosting and framework
+Academic project — University of Alabama at Birmingham, Spring 2026.
