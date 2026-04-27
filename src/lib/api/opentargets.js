@@ -19,7 +19,7 @@ const DISEASE_EFO_MAP = {
 export async function getTargetId(geneSymbol) {
   const query = `
     query {
-      search(queryString: "${geneSymbol}", entityNames: ["target"], page: { size: 5, index: 0 }) {
+      search(queryString: ${JSON.stringify(geneSymbol)}, entityNames: ["target"], page: { size: 5, index: 0 }) {
         hits {
           id
           name
@@ -56,7 +56,7 @@ export async function getTargetDiseaseEvidence(targetId, diseaseName) {
 
   const query = `
     query {
-      target(ensemblId: "${targetId}") {
+      target(ensemblId: ${JSON.stringify(targetId)}) {
         id
         approvedSymbol
         associatedDiseases(page: { size: 100, index: 0 }) {
@@ -117,7 +117,7 @@ export async function getTargetDiseaseEvidence(targetId, diseaseName) {
 export async function getKnownDrugs(targetId, diseaseName) {
   const query = `
     query {
-      target(ensemblId: "${targetId}") {
+      target(ensemblId: ${JSON.stringify(targetId)}) {
         id
         approvedSymbol
         tractability {

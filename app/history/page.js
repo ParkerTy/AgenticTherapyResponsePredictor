@@ -20,17 +20,25 @@ export default function History() {
   const [error, setError] = useState(null);
   const [filterDisease, setFilterDisease] = useState('');
 
-  useEffect(() => { loadRuns(filterDisease); }, [filterDisease]);
+  useEffect(() => {
+    const controller = new AbortController();
+    loadRuns(filterDisease, controller.signal);
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterDisease]);
 
-  const loadRuns = async (disease) => {
+  const loadRuns = async (disease, signal) => {
     setLoading(true); setError(null);
     try {
       const url = disease ? `/api/history?diseaseContext=${encodeURIComponent(disease)}&limit=100` : `/api/history?limit=100`;
-      const res = await fetch(url); const data = await res.json();
+      const res = await fetch(url, { signal }); const data = await res.json();
       if (!res.ok) { setError(data.error || 'Failed to load history'); setRuns([]); }
       else { setRuns(data.runs || []); }
-    } catch (err) { setError(err.message); }
-    finally { setLoading(false); }
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      setError(err.message);
+    }
+    finally { if (!signal?.aborted) setLoading(false); }
   };
 
   return (
